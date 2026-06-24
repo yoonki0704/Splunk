@@ -246,6 +246,369 @@ storage:
 
 > ⚠️ **보안 주의:** Access Key는 절대 Git에 올리지 마세요!
 
+#### Minio를 사용하는 경우 ####
+
+# MinIO 설치 및 설정 완전 가이드 🗄️
+
+## 전체 흐름
+
+```
+[1단계] MinIO 전용 EC2 인스턴스 준비
+    ↓
+[2단계] MinIO 설치 및 실행
+    ↓
+[3단계] MinIO 버킷 및 폴더 구조 생성
+    ↓
+[4단계] my-cluster.yaml storage 섹션 설정
+    ↓
+[5단계] 연결 테스트
+```
+
+---
+
+## 1단계: MinIO 전용 EC2 준비
+
+### 권장 사양
+
+| 항목 | 최소 | 권장 |
+|------|------|------|
+| 인스턴스 타입 | `t3.large` | `m5.xlarge` |
+| CPU | 2코어 | 4코어 |
+| RAM | 8GB | 16GB |
+| 디스크 | **500GB+** | **1TB+** |
+| OS | Ubuntu 22.04 | Ubuntu 22.04 |
+
+> ⚠️ **디스크가 중요합니다!** AI 모델 파일만 120GB+ 이고, 런타임 데이터까지 합치면 최소 500GB가 필요합니다.
+
+### EC2 보안 그룹 설정
+
+MinIO 서버에 아래 포트를 열어야 합니다:
+
+| 포트 | 용도 | 허용 대상 |
+|------|------|---------|
+| 9000 | MinIO API (S3 호환) | 클러스터 노드 전체 |
+| 9001 | MinIO 웹 콘솔 | Admin 워크스테이션 IP |
+| 22 | SSH | Admin 워크스테이션 IP |
+
+---
+
+## 2단계: MinIO 설치 및 실행
+
+MinIO EC2에 SSH 접속 후 아래 명령어를 순서대로 실행하세요.
+
+### MinIO 바이너리 설치
+
+```bash
+# MinIO 바이너리 다운로드
+wget https://dl.min.io/server/minio/release/linux-amd64/minio
+chmod +x minio
+sudo mv minio /usr/local/bin/
+
+# 버전 확인
+minio --version
+```
+
+### MinIO 클라이언트(mc) 설치
+
+```bash
+# MinIO 클라이언트 다운로드 (버킷/폴더 관리용)
+wget https://dl.min.io/client/mc/release/linux-amd64/mc
+chmod +x mc
+sudo mv mc /usr/local/bin/
+
+# 버전 확인
+mc --version
+```
+
+### 데이터 저장 디렉토리 생성
+
+```bash
+# MinIO 데이터 저장 경로 생성
+sudo mkdir -p /data/minio
+
+# 소유권 설정
+sudo chown -R ubuntu:ubuntu /data/minio
+
+# 디스크 용량 확인 (500GB 이상 있어야 함)
+df -h /data
+```
+
+> 💡 별도 EBS 볼륨을 /data에 마운트하는 것을 강력 권장합니다.
+
+### 별도 EBS 볼륨 마운트 (권장)
+
+```bash
+# 연결된 디스크 확인
+lsblk
+# 예시 출력:
+# NAME    MAJ:MIN RM  SIZE RO TYPE MOUNTPOINT
+# xvda    202:0    0   20G  0 disk /
+# xvdb    202:16   0  500G  0 disk ← 이게 새로 추가한 EBS
+
+# 파티션 및 포맷
+sudo mkfs.ext4 /dev/xvdb
+
+# 마운트
+sudo mkdir -p /data
+sudo mount /dev/xvdb /data
+
+# 부팅 시 자동 마운트 설정
+echo '/dev/xvdb /data ext4 defaults 0 0' | sudo tee -a /etc/fstab
+
+# 마운트 확인
+df -h /data
+```
+
+### MinIO systemd 서비스로 등록
+
+재부팅해도 자동으로 MinIO가 실행되도록 설정합니다.
+
+```bash
+# 환경 변수 파일 생성
+sudo tee /etc/minio/minio.env > /dev/null <<EOF
+# MinIO 관리자 계정 설정
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=MinioPassword123!
+
+# 데이터 저장 경로
+MINIO_VOLUMES=/data/minio
+
+# MinIO 서버 주소
+MINIO_OPTS="--address :9000 --console-address :9001"
+EOF
+
+# 디렉토리 생성
+sudo mkdir -p /etc/minio
+sudo tee /etc/minio/minio.env > /dev/null <<EOF
+MINIO_ROOT_USER=minioadmin
+MINIO_ROOT_PASSWORD=MinioPassword123!
+MINIO_VOLUMES=/data/minio
+MINIO_OPTS="--address :9000 --console-address :9001"
+EOF
+
+# systemd 서비스 파일 생성
+sudo tee /etc/systemd/system/minio.service > /dev/null <<EOF
+[Unit]
+Description=MinIO Object Storage
+Documentation=https://min.io/docs/minio/linux/index.html
+Wants=network-online.target
+After=network-online.target
+AssertFileIsExecutable=/usr/local/bin/minio
+
+[Service]
+WorkingDirectory=/data/minio
+User=ubuntu
+Group=ubuntu
+EnvironmentFile=/etc/minio/minio.env
+ExecStart=/usr/local/bin/minio server \$MINIO_VOLUMES \$MINIO_OPTS
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+TimeoutStopSec=infinity
+SendSIGKILL=no
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# 서비스 등록 및 시작
+sudo systemctl daemon-reload
+sudo systemctl enable minio
+sudo systemctl start minio
+
+# 서비스 상태 확인
+sudo systemctl status minio
+```
+
+**정상 실행 시 출력 예시:**
+```
+● minio.service - MinIO Object Storage
+     Loaded: loaded (/etc/systemd/system/minio.service; enabled)
+     Active: active (running) since ...
+```
+
+### MinIO 실행 확인
+
+```bash
+# MinIO API 포트 응답 확인
+curl http://localhost:9000/minio/health/live
+# 응답 없이 200 OK면 정상
+
+# 로그 확인
+sudo journalctl -u minio -f
+```
+
+---
+
+## 3단계: MinIO 버킷 및 폴더 구조 생성
+
+### mc 클라이언트 MinIO 서버 연결
+
+```bash
+# MinIO 서버 등록 (minio-server는 별명, 자유롭게 지정)
+mc alias set minio-server http://localhost:9000 minioadmin MinioPassword123!
+
+# 연결 확인
+mc admin info minio-server
+```
+
+### 버킷 생성
+
+```bash
+# AI Platform용 버킷 생성
+mc mb minio-server/ai-platform-bucket
+
+# 버킷 확인
+mc ls minio-server
+```
+
+### 필수 폴더 구조 생성
+
+README에 명시된 폴더 구조를 미리 만들어 둡니다:
+
+```bash
+# 모델 아티팩트 폴더 (AI 모델 파일이 저장될 위치)
+mc mb minio-server/ai-platform-bucket/model_artifacts
+
+# 런타임 폴더들 (설치 후 자동 생성되지만 미리 만들어도 됨)
+mc mb minio-server/ai-platform-bucket/artifacts
+mc mb minio-server/ai-platform-bucket/conversations
+mc mb minio-server/ai-platform-bucket/config
+mc mb minio-server/ai-platform-bucket/storage_queue
+mc mb minio-server/ai-platform-bucket/tasks
+
+# 폴더 구조 확인
+mc ls minio-server/ai-platform-bucket
+```
+
+### MinIO 웹 콘솔 접속 확인
+
+Admin 워크스테이션 브라우저에서:
+```
+http://<MinIO-EC2-Public-IP>:9001
+ID: minioadmin
+PW: MinioPassword123!
+```
+
+---
+
+## 4단계: my-cluster.yaml storage 섹션 설정
+
+이제 MinIO 정보를 yaml 파일에 입력합니다.
+
+```yaml
+storage:
+  storageClass: "local-path"        # 그대로 유지
+  vectorDbSize: "50Gi"              # 그대로 유지
+
+  modelStaging:
+    enabled: false                  # 처음엔 false, 나중에 모델 업로드 후 변경
+
+  objectStore:
+    type: "minio"                   # ✏️ "minio" 로 설정
+
+    bucket: "ai-platform-bucket"    # ✏️ 위에서 만든 버킷 이름
+
+    endpoint: "http://172.31.10.200:9000"
+    # ✏️ MinIO EC2의 Private IP + 포트 9000
+    # 형식: http://<MinIO-EC2-Private-IP>:9000
+    # 예시: http://172.31.20.50:9000
+    # ⚠️ 클러스터 노드에서 접근 가능한 Private IP 사용
+    # ⚠️ http:// 빠뜨리지 마세요!
+
+    auth:
+      rootUser: "minioadmin"
+      # ✏️ MinIO 설치 시 설정한 MINIO_ROOT_USER
+
+      rootPassword: "MinioPassword123!"
+      # ✏️ MinIO 설치 시 설정한 MINIO_ROOT_PASSWORD
+```
+
+### 실제 적용 예시
+
+```bash
+# MinIO EC2의 Private IP 확인
+aws ec2 describe-instances \
+  --filters "Name=tag:Name,Values=minio-server" \
+  --query 'Reservations[*].Instances[*].PrivateIpAddress' \
+  --output text
+# 예: 172.31.20.50
+```
+
+```yaml
+# my-cluster.yaml의 storage 섹션 최종 예시
+storage:
+  storageClass: "local-path"
+  vectorDbSize: "50Gi"
+
+  minimumDiskSpace:
+    controller: 100
+    cpuWorker: 200
+    gpuWorker: 500
+
+  modelStaging:
+    enabled: false
+
+  objectStore:
+    type: "minio"
+    bucket: "ai-platform-bucket"
+    endpoint: "http://172.31.20.50:9000"
+    auth:
+      rootUser: "minioadmin"
+      rootPassword: "MinioPassword123!"
+```
+
+---
+
+## 5단계: 연결 테스트
+
+### Admin 워크스테이션에서 MinIO 접근 테스트
+
+```bash
+# mc 클라이언트 설치 (Admin 워크스테이션에도 설치)
+wget https://dl.min.io/client/mc/release/linux-amd64/mc
+chmod +x mc && sudo mv mc /usr/local/bin/
+
+# MinIO 서버 연결 등록
+mc alias set minio-test http://<MinIO-Private-IP>:9000 minioadmin MinioPassword123!
+
+# 연결 테스트
+mc admin info minio-test
+
+# 버킷 목록 확인
+mc ls minio-test
+```
+
+### 클러스터 노드에서 MinIO 접근 테스트
+
+```bash
+# 각 클러스터 노드에서 MinIO 접근 가능한지 확인
+ssh -i ~/.ssh/splunk-ai-key ec2-user@<controller-IP>
+curl http://<MinIO-Private-IP>:9000/minio/health/live
+# HTTP 200 응답이면 정상
+```
+
+---
+
+## 📋 설정 완료 체크리스트
+
+```
+□ MinIO EC2 인스턴스 생성 완료
+□ 보안 그룹에서 포트 9000, 9001 오픈
+□ EBS 볼륨 500GB+ 마운트 완료 (/data)
+□ MinIO 바이너리 설치 완료
+□ systemd 서비스 등록 및 실행 중 (active running)
+□ ai-platform-bucket 버킷 생성 완료
+□ 웹 콘솔(포트 9001) 접속 확인
+□ 클러스터 노드 → MinIO 포트 9000 접근 가능 확인
+□ my-cluster.yaml storage 섹션 설정 완료
+   □ type: "minio"
+   □ bucket 이름 입력
+   □ endpoint: "http://<MinIO-Private-IP>:9000"
+   □ rootUser / rootPassword 입력
+```
+
+
 ---
 
 #### 섹션 4: images (컨테이너 이미지 설정)
