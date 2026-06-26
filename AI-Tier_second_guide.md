@@ -42,7 +42,20 @@ k0s 클러스터 노드들이 로컬 Docker Registry(HTTP)에
 | CPU Worker | 1대 | RHEL 9 | 200GB+ |
 | GPU Worker | 2대 | RHEL 9 | 500GB+ |
 
+### 필요한 EC2 인스턴스 구성
 
+DEPLOYMENT_GUIDE.md 기준으로 **최소 4대의 서버**가 필요합니다.
+
+| 역할 | 수량 | 권장 인스턴스 | CPU | RAM | 디스크 |
+|------|------|-------------|-----|-----|--------|
+| Controller | 1대 | `m5.xlarge` | 4코어 | 8GB | 100GB |
+| CPU Worker | 1대+ | `m5.2xlarge` | 8코어 | 32GB | 200GB |
+| GPU Worker | **2대 필수** | `g6e.12xlarge` | 48코어 | 384GB | 500GB |
+| Admin 워크스테이션 | 1대 | `t3.medium` | - | - | **250GB** (모델 다운로드용) |
+
+> ⚠️ **중요:** GPU Worker는 **반드시 2대** 필요합니다. 1대로는 AI 추론 스택이 동작하지 않아요.
+
+> ⚠️ **OS 주의:** 클러스터 노드(Controller, Worker)는 **RHEL 9** 사용을 권장합니다. Admin 워크스테이션은 Ubuntu 사용 가능합니다.
 
 ### Security Group 설정
 
