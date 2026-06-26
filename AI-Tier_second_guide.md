@@ -69,7 +69,13 @@ Admin 서버(Ubuntu)에서 실행:
 ```bash
 # 기본 도구 설치
 sudo apt-get update
-sudo apt-get install -y git jq curl docker.io awscli
+sudo apt-get install -y git jq curl docker.io
+
+# awscli 설치
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+aws --version
 
 # Docker 권한 설정
 sudo usermod -aG docker ubuntu
