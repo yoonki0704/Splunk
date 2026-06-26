@@ -343,8 +343,8 @@ echo "Registry IP: ${REGISTRY_IP}"
 ```yaml
 cluster:
   name: ai-cluster
-  region: us-east-2
-  sshKeyPath: ~/.ssh/yoonki-key.pem
+  region: ap-northeast-2
+  sshKeyPath: /root/.ssh/yoonki-key.pem
   sshUser: ec2-user
 
 nodes:
@@ -353,11 +353,11 @@ nodes:
   gpuWorkers: 2
   existingIPs:
     controllers:
-      - 172.31.xx.xx      # Controller IP
+      - 172.31.40.34      # Controller IP
     workers:
-      - 172.31.xx.xx      # CPU Worker IP
-      - 172.31.xx.xx      # GPU Worker 1 IP
-      - 172.31.xx.xx      # GPU Worker 2 IP
+      - 172.31.32.23      # CPU Worker IP
+      - 172.31.24.22      # GPU Worker 1 IP
+      - 172.31.31.251      # GPU Worker 2 IP
 
 storage:
   storageClass: "local-path"
@@ -371,27 +371,27 @@ storage:
   objectStore:
     type: "minio"
     bucket: "ai-platform-bucket"
-    endpoint: "http://<REGISTRY_IP>:9000"   # MinIO IP:9000
+    endpoint: "http://172.31.57.34:9000"   # MinIO IP:9000
     auth:
       rootUser: "minioadmin"
       rootPassword: "MinioPassword123!"
 
 images:
-  registry: "<REGISTRY_IP>:5000"            # Registry IP:5000
+  registry: "172.31.57.34:5000"            # Registry IP:5000
   operator:
     image: "docker.io/splunk/splunk-ai-operator:0.2.0"
   splunk:
     image: "docker.io/splunk/splunk:10.2-rhel9"
     operatorImage: "docker.io/splunk/splunk-operator:3.0.0"
   ray:
-    headImage: "<REGISTRY_IP>:5000/ray/ray-head:build-953"
-    workerImage: "<REGISTRY_IP>:5000/ray/ray-worker-gpu:build-953"
+    headImage: "172.31.57.34:5000/ray/ray-head:build-953"
+    workerImage: "172.31.57.34:5000/ray/ray-worker-gpu:build-953"
   weaviate:
     image: "docker.io/semitechnologies/weaviate:stable-v1.28-007846a"
   saia:
-    apiImage: "<REGISTRY_IP>:5000/saia/saia-api:build-v2-main-c3b489d"
-    apiV2Image: "<REGISTRY_IP>:5000/saia/saia-api-v2:build-v2-main-c3b489d"
-    dataLoaderImage: "<REGISTRY_IP>:5000/saia/saia-data-loader:build-v2-main-c3b489d"
+    apiImage: "172.31.57.34:5000/saia/saia-api:build-v2-main-c3b489d"
+    apiV2Image: "172.31.57.34:5000/saia/saia-api-v2:build-v2-main-c3b489d"
+    dataLoaderImage: "172.31.57.34:5000/saia/saia-data-loader:build-v2-main-c3b489d"
   fluentBit:
     image: "docker.io/fluent/fluent-bit:1.9.6"
   otelCollector:
