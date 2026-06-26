@@ -191,8 +191,7 @@ echo "Registry 상태:" && \
 
 ```bash
 # Admin 서버에서 실행
-REGISTRY_IP=$(curl -s \
-  http://169.254.169.254/latest/meta-data/local-ipv4)
+REGISTRY_IP=172.31.57.34
 echo "Registry IP: ${REGISTRY_IP}"
 
 sudo tee /etc/docker/daemon.json > /dev/null <<EOF
@@ -207,12 +206,25 @@ docker start docker-registry
 # 확인
 curl -s http://${REGISTRY_IP}:5000/v2/_catalog
 ```
+### 컨테이너 이미지 Download
+```bash
+wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/ray-worker-gpu-build-preview.tar
+
+wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/saia-api-v2-build-preview.tar
+
+wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/ray-head-build-preview.tar
+
+wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/saia-data-loader-build-preview.tar
+
+wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/saia-api-build-preview.tar
+
+wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/Splunk_AI_Assistant_preview.tgz
+```
 
 ### 컨테이너 이미지 Push
 
 ```bash
-REGISTRY_IP=$(curl -s \
-  http://169.254.169.254/latest/meta-data/local-ipv4)
+REGISTRY_IP=$172.31.57.34
 REGISTRY="${REGISTRY_IP}:5000"
 
 # /tmp의 tar 파일 로드 및 push
@@ -252,10 +264,9 @@ curl -s http://${REGISTRY}/v2/_catalog
 **k0s 설치 전에** 모든 클러스터 노드에 Registry HTTP 허용 설정을 합니다:
 
 ```bash
-SSH_KEY="~/.ssh/yoonki-key.pem"
+SSH_KEY="/root/.ssh/yoonki-key.pem"
 SSH_USER="ec2-user"
-REGISTRY_IP=$(curl -s \
-  http://169.254.169.254/latest/meta-data/local-ipv4)
+REGISTRY_IP=172.31.57.34
 
 # 실제 노드 IP로 변경
 CONTROLLER="172.31.40.34"
@@ -323,8 +334,7 @@ cd splunk-ai-operator/tools/cluster_setup
 cp k0s-cluster-config.yaml my-cluster.yaml
 
 # Registry IP 확인
-REGISTRY_IP=$(curl -s \
-  http://169.254.169.254/latest/meta-data/local-ipv4)
+REGISTRY_IP=172.31.57.34
 echo "Registry IP: ${REGISTRY_IP}"
 ```
 
