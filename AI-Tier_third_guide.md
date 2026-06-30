@@ -192,6 +192,21 @@ README에 명시된 모델 목록(**HuggingFace**에서 다운로드):
 
 **총 10개 모델, 120GB 이상**
 
+> AI 모델을 다운로드하기 전에 yaml파일(my_cluster.yaml)에 object storage 경로 수정 필요
+```bash
+# AI 모델 자동 다운로드를 false로 설정
+  modelStaging:
+    enabled: false
+
+  objectStore:
+    type: "minio"                                # aws | s3compat | minio | seaweedfs (external only for non-aws)
+    bucket: "ai-platform-bucket-minio-us-east-2"
+    endpoint: "http://172.31.51.179:9000"              # CHANGE THIS: MinIO/SeaweedFS/S3 API endpoint
+    auth:
+      rootUser: "minioadmin"          # CHANGE THIS — AWS_ACCESS_KEY_ID (AKIA…) or MinIO root user
+      rootPassword: "MinioPassword123!"  # CHANGE THIS — AWS secret OR MinIO root password; NEVER commit real keys
+```
+
 
 > AI 모델을 수동으로 다운로드하는 방법
 
@@ -209,17 +224,19 @@ cd /home/ec2-user/splunk-ai-operator/tools/artifacts_download_upload_scripts/mod
 ### 모델 파일이 폴더로 있는 경우
 
 ```bash
+model_path=home/ec2-user/splunk-ai-operator/tools/artifacts_download_upload_scripts/model_artifacts
+
 # 각 모델 폴더를 MinIO에 업로드
-for model_dir in /tmp/gemma-4-31b-it \
-                 /tmp/gpt-oss-20b \
-                 /tmp/all-minilm-l6-v2 \
-                 /tmp/bi-encoder \
-                 /tmp/cross-encoder \
-                 /tmp/e5-language-classifier \
-                 /tmp/mbart-translator \
-                 /tmp/pii-classifier \
-                 /tmp/uae-large \
-                 /tmp/xlm-roberta-language-classifier; do
+for model_dir in /$model_path/gemma-4-31b-it \
+                 /$model_path/gpt-oss-20b \
+                 /$model_path/all-minilm-l6-v2 \
+                 /$model_path/bi-encoder \
+                 /$model_path/cross-encoder \
+                 /$model_path/e5-language-classifier \
+                 /$model_path/mbart-translator \
+                 /$model_path/pii-classifier \
+                 /$model_path/uae-large \
+                 /$model_path/xlm-roberta-language-classifier; do
 
   if [ -d "${model_dir}" ]; then
     model_name=$(basename ${model_dir})
