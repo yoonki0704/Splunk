@@ -200,14 +200,10 @@ CONFIG_FILE=./my-cluster.yaml \
   ./k0s_cluster_with_stack.sh stage-artifacts
 ```
 
-> `/tmp`에 있는 모델 파일들을 MinIO에 업로드합니다.
+> 모델 파일들이 다운로드 되는 경로
 
 ```bash
-# /tmp에 있는 파일 확인
-ls -lh /tmp/
-
-# 모델 파일 구조 확인
-# 예상: gemma-4-31b-it/, gpt-oss-20b/ 등 폴더 또는 파일들
+cd /home/ec2-user/splunk-ai-operator/tools/artifacts_download_upload_scripts/model_artifacts/
 ```
 
 ### 모델 파일이 폴더로 있는 경우
