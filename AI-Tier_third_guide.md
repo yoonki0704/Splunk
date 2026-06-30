@@ -1,28 +1,3 @@
-# 처음부터 완전 재설치 가이드 🚀
-
-## 먼저 중요한 사항 확인
-
-### AI 모델 문제에 대한 의견
-
-다른 분의 의견이 **맞을 가능성이 높습니다!**
-
-```
-README 확인:
-storage.modelStaging.enabled: false 로 설정 시
-→ 모델이 이미 MinIO에 있어야 함
-→ 없으면 Ray Worker가 시작 후 모델 로드 실패
-→ Pod가 계속 재시작/실패 반복
-```
-
-즉, **두 가지 문제가 같이 있었습니다:**
-
-| 문제 | 원인 | 해결 |
-|------|------|------|
-| ImagePullBackOff | HTTP Registry 설정 | hosts.toml 적용 |
-| Ray Worker 실패 | AI 모델 없음 | MinIO에 모델 업로드 |
-
----
-
 ## 전체 구성도
 
 ```
@@ -260,8 +235,7 @@ find /tmp -name "*.bin" -o \
 sudo mkdir -p /data/registry
 
 # Admin 서버 Private IP 확인
-ADMIN_IP=$(curl -s \
-  http://169.254.169.254/latest/meta-data/local-ipv4)
+ADMIN_IP=$172.31.51.179
 echo "Admin IP: ${ADMIN_IP}"
 
 # daemon.json 설정 (HTTP Registry 허용)
@@ -293,13 +267,12 @@ echo "Registry 정상 ✅"
 ## STEP 7: 컨테이너 이미지 Registry에 Push
 
 ```bash
-ADMIN_IP=$(curl -s \
-  http://169.254.169.254/latest/meta-data/local-ipv4)
+ADMIN_IP=$172.31.51.179
 REGISTRY="${ADMIN_IP}:5000"
 ECR="658391232643.dkr.ecr.us-east-2.amazonaws.com/ml-platform"
 
 echo "=== /tmp의 tar 파일 로드 ==="
-for TAR_FILE in /tmp/*.tar; do
+for TAR_FILE in /home/ec2-user/*.tar; do
   [ -f "${TAR_FILE}" ] || continue
   echo "로드 중: ${TAR_FILE}"
   docker load -i ${TAR_FILE}
