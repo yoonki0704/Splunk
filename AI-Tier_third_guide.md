@@ -173,6 +173,28 @@ mc ls local/ai-platform-bucket
 
 ## STEP 5: ★ AI 모델 MinIO에 업로드 (핵심!)
 
+> AI 모델 다운로드 정보 확인 🔍
+
+README와 설치 스크립트에 따르면 모델은 **HuggingFace**에서 다운로드합니다.
+
+README에 명시된 모델 목록:
+
+| 모델 ID | 용도 |
+|---------|------|
+| `gemma-4-31b-it` | 기본 LLM (채팅, SPL 생성) |
+| `gpt-oss-20b` | 보조 LLM |
+| `all-minilm-l6-v2` | 문장 임베딩 / 시맨틱 검색 |
+| `bi-encoder` | BGE 인코더 |
+| `cross-encoder` | MS MARCO 크로스 인코더 |
+| `e5-language-classifier` | 다국어 언어 감지 |
+| `mbart-translator` | 다국어 번역 |
+| `pii-classifier` | 개인정보 감지 |
+| `uae-large` | 임베딩 모델 |
+| `xlm-roberta-language-classifier` | 언어 분류기 |
+
+**총 10개 모델, 120GB 이상**
+
+
 > AI 모델을 수동으로 다운로드하는 방법
 
 ```bash
