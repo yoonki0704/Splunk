@@ -228,7 +228,7 @@ REGISTRY_IP=$172.31.57.34
 REGISTRY="${REGISTRY_IP}:5000"
 
 # /tmp의 tar 파일 로드 및 push
-for TAR_FILE in /tmp/*.tar; do
+for TAR_FILE in /home/ec2-user/*.tar; do
   echo "=== 로드 중: ${TAR_FILE} ==="
   docker load -i ${TAR_FILE}
 done
