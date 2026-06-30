@@ -271,7 +271,22 @@ echo "Registry 정상 ✅"
 
 ---
 
-## STEP 7: 컨테이너 이미지 Registry에 Push
+## STEP 7: 컨테이너 이미지 Registry에 Download 및 Push
+
+### 컨테이너 이미지 Download
+```bash
+wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/ray-worker-gpu-build-preview.tar
+
+wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/saia-api-v2-build-preview.tar
+
+wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/ray-head-build-preview.tar
+
+wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/saia-data-loader-build-preview.tar
+
+wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/saia-api-build-preview.tar
+
+wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/Splunk_AI_Assistant_preview.tgz
+```
 
 ```bash
 ADMIN_IP=$172.31.51.179
