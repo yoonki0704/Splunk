@@ -171,13 +171,11 @@ mc ls local/ai-platform-bucket
 
 ---
 
-## STEP 5: ★ AI 모델 MinIO에 업로드 (핵심!)
+## STEP 5: AI 모델 MinIO에 업로드
 
 > AI 모델 다운로드 정보 확인 🔍
 
-README와 설치 스크립트에 따르면 모델은 **HuggingFace**에서 다운로드합니다.
-
-README에 명시된 모델 목록:
+README에 명시된 모델 목록(**HuggingFace**에서 다운로드):
 
 | 모델 ID | 용도 |
 |---------|------|
