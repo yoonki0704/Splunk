@@ -173,6 +173,13 @@ mc ls local/ai-platform-bucket
 
 ## STEP 5: ★ AI 모델 MinIO에 업로드 (핵심!)
 
+> AI 모델을 수동으로 다운로드하는 방법
+
+```bash
+CONFIG_FILE=./my-cluster.yaml \
+  ./k0s_cluster_with_stack.sh stage-artifacts
+```
+
 > `/tmp`에 있는 모델 파일들을 MinIO에 업로드합니다.
 
 ```bash
