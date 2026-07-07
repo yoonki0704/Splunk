@@ -48,10 +48,10 @@ DEPLOYMENT_GUIDE.md 기준으로 **최소 4대의 서버**가 필요합니다.
 
 | 역할 | 수량 | 권장 인스턴스 | CPU | RAM | 디스크 |
 |------|------|-------------|-----|-----|--------|
-| Controller | 1대 | `m5.xlarge` | 4코어 | 8GB | 100GB |
-| CPU Worker | 1대+ | `m5.2xlarge` | 8코어 | 32GB | 200GB |
-| GPU Worker | **2대 필수** | `g6e.12xlarge` | 48코어 | 384GB | 500GB |
-| Admin 워크스테이션 | 1대 | `t3.medium` | - | - | **250GB** (모델 다운로드용) |
+| Controller | 1대 | `m5.2xlarge` | 4코어 | 8GB | 150GB |
+| CPU Worker | 1대+ | `m5.4xlarge` | 8코어 | 32GB | 250GB |
+| GPU Worker | **2대 필수** | `g6e.12xlarge` | 48코어 | 384GB | 550GB |
+| Admin 워크스테이션 | 1대 | `t3.xlarge` | - | - | **450GB** (모델 다운로드용) |
 
 > ⚠️ **중요:** GPU Worker는 **반드시 2대** 필요합니다. 1대로는 AI 추론 스택이 동작하지 않아요.
 
@@ -458,11 +458,11 @@ ecr:
 cd splunk-ai-operator/tools/cluster_setup
 
 # Step 1: 검증
-CONFIG_FILE=./my-cluster.yaml \
+CONFIG_FILE=./my_cluster.yaml \
   ./k0s_cluster_with_stack.sh validate
 
 # Step 2: 설치 (검증 통과 후)
-CONFIG_FILE=./my-cluster.yaml \
+CONFIG_FILE=./my_cluster.yaml \
   ./k0s_cluster_with_stack.sh install
 ```
 
