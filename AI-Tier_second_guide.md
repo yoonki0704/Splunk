@@ -18,6 +18,11 @@
 [설치 실행] validate → install
 ```
 
+## 참고 링크
+```
+AI-Tier Github - https://github.com/splunk/splunk-ai-operator/blob/main/tools/cluster_setup/DEPLOYMENT_GUIDE.md
+VOC Portal - https://voc.splunk.com/alpha/aitierbaremetal?firstVisit=true
+```
 ---
 
 ### 필요한 EC2 인스턴스 구성
