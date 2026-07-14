@@ -455,10 +455,15 @@ tail -f splunk-ai-operator/tools/cluster_setup/logs/k0s-install-*.log
 □ MinIO 실행 중 (포트 9000)
 □ Docker Registry 실행 중 (포트 5000)
 □ 모든 이미지 Registry에 Push 완료
-□ 모든 클러스터 노드에 hosts.toml 설정 완료  ← 핵심!
+□ 모든 클러스터 노드에 hosts.toml 설정 완료
 □ 모든 클러스터 노드 passwordless sudo 설정
 □ my-cluster.yaml 작성 완료
 □ validate 통과
 ```
 
-새 인스턴스 IP가 확정되면 알려주세요. yaml 파일 설정을 바로 도와드릴게요! 😊
+## K0S Cluster 상태 정보 확인 (Admin -> Controller)
+```
+ssh -i /root/.ssh/yoonki-key.pem ec2-user@172.31.43.176 "sudo k0s kubectl get nodes -A"
+ssh -i /root/.ssh/yoonki-key.pem ec2-user@172.31.43.176 "sudo k0s kubectl get pods -A"
+ssh -i /root/.ssh/yoonki-key.pem ec2-user@172.31.43.176 "sudo k0s kubectl get pods -n ai-platform -w"
+```
