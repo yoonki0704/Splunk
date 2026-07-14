@@ -23,6 +23,7 @@
 ### 필요한 EC2 인스턴스 구성
 
 DEPLOYMENT_GUIDE.md 기준으로 **최소 4대의 서버**가 필요합니다.
+> OS : RHEL version 9
 
 | 역할 | 수량 | 권장 인스턴스 | CPU | RAM | 디스크 |
 |------|------|-------------|-----|-----|--------|
@@ -32,8 +33,6 @@ DEPLOYMENT_GUIDE.md 기준으로 **최소 4대의 서버**가 필요합니다.
 | Admin (MinIO + Registry) | 1대 | `t3.xlarge` | - | - | **450GB** (모델 다운로드용) |
 
 > ⚠️ **중요:** GPU Worker는 **반드시 2대** 필요합니다. 1대로는 AI 추론 스택이 동작하지 않아요.
-
-> ⚠️ **OS 주의:** 클러스터 노드(Controller, Worker)는 **RHEL 9** 사용을 권장합니다. Admin 워크스테이션은 Ubuntu 사용 가능합니다.
 
 ### Security Group 설정
 
@@ -57,7 +56,7 @@ Inbound Rules:
 
 ## 사전작업 2: Admin 서버 도구 설치
 
-Admin 서버(Ubuntu)에서 실행:
+Admin 서버에서 실행:
 
 ```bash
 # 기본 도구 설치
@@ -97,7 +96,7 @@ git --version && jq --version && yq --version
 
 ---
 
-## 사전작업 3: MinIO + Docker Registry 구성
+## 사전작업 3: Admin서버에 MinIO + Docker Registry 구성
 
 ```bash
 # 데이터 디렉토리 생성
@@ -161,15 +160,11 @@ echo "Registry 상태:" && \
 
 ---
 
-## 사전작업 4: ★ Registry HTTP 허용 설정 (핵심!)
-
-이전 설치에서 실패한 **근본 원인을 해결**하는 단계입니다.
-
-### Admin 서버 Docker HTTP 허용
+## 사전작업 4: Admin 서버에서 Docker Registry HTTP 허용 설정
 
 ```bash
 # Admin 서버에서 실행
-REGISTRY_IP=172.31.57.34
+REGISTRY_IP=172.31.51.179
 echo "Registry IP: ${REGISTRY_IP}"
 
 sudo tee /etc/docker/daemon.json > /dev/null <<EOF
@@ -202,7 +197,7 @@ wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/Splunk_AI_Assis
 ### 컨테이너 이미지 Push
 
 ```bash
-REGISTRY_IP=$172.31.57.34
+REGISTRY_IP=$172.31.51.179
 REGISTRY="${REGISTRY_IP}:5000"
 
 # /tmp의 tar 파일 로드 및 push
@@ -244,13 +239,13 @@ curl -s http://${REGISTRY}/v2/_catalog
 ```bash
 SSH_KEY="/root/.ssh/yoonki-key.pem"
 SSH_USER="ec2-user"
-REGISTRY_IP=172.31.57.34
+REGISTRY_IP=172.31.51.179
 
 # 실제 노드 IP로 변경
-CONTROLLER="172.31.47.176"
-CPU_WORKER="172.31.35.33"
-GPU_WORKER_1="172.31.21.15"
-GPU_WORKER_2="172.31.27.171"
+CONTROLLER="172.31.43.176"
+CPU_WORKER="172.31.39.105"
+GPU_WORKER_1="172.31.31.249"
+GPU_WORKER_2="172.31.23.195"
 ALL_NODES="${CONTROLLER} ${CPU_WORKER} ${GPU_WORKER_1} ${GPU_WORKER_2}"
 
 for NODE_IP in ${ALL_NODES}; do
@@ -312,7 +307,7 @@ cd splunk-ai-operator/tools/cluster_setup
 cp k0s-cluster-config.yaml my-cluster.yaml
 
 # Registry IP 확인
-REGISTRY_IP=172.31.57.34
+REGISTRY_IP=172.31.51.179
 echo "Registry IP: ${REGISTRY_IP}"
 ```
 
@@ -331,11 +326,11 @@ nodes:
   gpuWorkers: 2
   existingIPs:
     controllers:
-      - 172.31.40.34      # Controller IP
+      - 172.31.43.176      # Controller IP
     workers:
-      - 172.31.32.23      # CPU Worker IP
-      - 172.31.24.22      # GPU Worker 1 IP
-      - 172.31.31.251      # GPU Worker 2 IP
+      - 172.31.39.105      # CPU Worker IP
+      - 172.31.31.249      # GPU Worker 1 IP
+      - 172.31.23.195      # GPU Worker 2 IP
 
 storage:
   storageClass: "local-path"
@@ -349,27 +344,27 @@ storage:
   objectStore:
     type: "minio"
     bucket: "ai-platform-bucket"
-    endpoint: "http://172.31.57.34:9000"   # MinIO IP:9000
+    endpoint: "http://172.31.51.179:9000"   # MinIO IP:9000
     auth:
       rootUser: "minioadmin"
       rootPassword: "MinioPassword123!"
 
 images:
-  registry: "172.31.57.34:5000"            # Registry IP:5000
+  registry: "172.31.51.179:5000"            # Registry IP:5000
   operator:
     image: "docker.io/splunk/splunk-ai-operator:0.2.0"
   splunk:
     image: "docker.io/splunk/splunk:10.2-rhel9"
     operatorImage: "docker.io/splunk/splunk-operator:3.0.0"
   ray:
-    headImage: "172.31.57.34:5000/ray/ray-head:build-953"
-    workerImage: "172.31.57.34:5000/ray/ray-worker-gpu:build-953"
+    headImage: "172.31.51.179:5000/ray/ray-head:build-953"
+    workerImage: "172.31.51.179:5000/ray/ray-worker-gpu:build-953"
   weaviate:
     image: "docker.io/semitechnologies/weaviate:stable-v1.28-007846a"
   saia:
-    apiImage: "172.31.57.34:5000/saia/saia-api:build-v2-main-c3b489d"
-    apiV2Image: "172.31.57.34:5000/saia/saia-api-v2:build-v2-main-c3b489d"
-    dataLoaderImage: "172.31.57.34:5000/saia/saia-data-loader:build-v2-main-c3b489d"
+    apiImage: "172.31.51.179:5000/saia/saia-api:build-v2-main-c3b489d"
+    apiV2Image: "172.31.51.179:5000/saia/saia-api-v2:build-v2-main-c3b489d"
+    dataLoaderImage: "172.31.51.179:5000/saia/saia-data-loader:build-v2-main-c3b489d"
   fluentBit:
     image: "docker.io/fluent/fluent-bit:1.9.6"
   otelCollector:
