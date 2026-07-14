@@ -101,7 +101,7 @@ git --version && jq --version && yq --version
 ```bash
 # 데이터 디렉토리 생성
 sudo mkdir -p /data/minio /data/registry
-sudo chown -R ubuntu:ubuntu /data/minio /data/registry
+sudo chown -R ec2-user:ec2-user /data/minio /data/registry
 
 # MinIO 설치
 wget https://dl.min.io/server/minio/release/linux-amd64/minio \
