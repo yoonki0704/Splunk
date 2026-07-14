@@ -60,74 +60,109 @@ Admin 서버에서 실행:
 
 ```bash
 # 기본 도구 설치
-sudo apt-get update
-sudo apt-get install -y git jq curl docker.io
-
-# awscli 설치
-curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
-unzip awscliv2.zip
-sudo ./aws/install
-aws --version
-
-# Docker 권한 설정
-sudo usermod -aG docker ubuntu
-newgrp docker
+sudo yum install -y git jq curl wget
 
 # kubectl 설치
-KUBE_VERSION=$(curl -L -s https://dl.k8s.io/release/stable.txt)
-curl -LO "https://dl.k8s.io/release/${KUBE_VERSION}/bin/linux/amd64/kubectl"
-chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+cat <<EOF | sudo tee /etc/yum.repos.d/kubernetes.repo
+[kubernetes]
+name=Kubernetes
+baseurl=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/
+enabled=1
+gpgcheck=1
+gpgkey=https://pkgs.k8s.io/core:/stable:/v1.31/rpm/repodata/repomd.xml.key
+EOF
+
+sudo yum install -y kubectl
+kubectl version --client
 
 # helm 설치
 curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+echo $PATH
+export PATH=$PATH:/usr/local/bin
+helm version
 
 # yq 설치
 wget https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64 \
-  -O /usr/local/bin/yq && chmod +x /usr/local/bin/yq
+  -O /usr/local/bin/yq
+chmod +x /usr/local/bin/yq
+yq --version
 
-# mc (MinIO 클라이언트) 설치
-wget https://dl.min.io/client/mc/release/linux-amd64/mc \
-  -O /usr/local/bin/mc && chmod +x /usr/local/bin/mc
+# AWS CLI 설치
+sudo yum install -y awscli
+aws --version
 
-# 설치 확인
-kubectl version --client && helm version && \
-git --version && jq --version && yq --version
+# 전체 확인
+echo "=== 설치 확인 ===" && \
+kubectl version --client && \
+helm version && \
+git --version && \
+jq --version && \
+yq --version && \
+aws --version
+
+## Docker 설치
+# RHEL에서 Docker 설치
+sudo yum install -y yum-utils
+sudo yum-config-manager \
+  --add-repo \
+  https://download.docker.com/linux/rhel/docker-ce.repo
+
+sudo yum install -y docker-ce docker-ce-cli containerd.io
+
+# Docker 시작
+sudo systemctl enable docker
+sudo systemctl start docker
+
+# 현재 유저 docker 그룹 추가
+sudo usermod -aG docker $USER
+newgrp docker
+
+# 확인
+docker --version
+sudo systemctl status docker | grep Active 
 ```
+
 
 ---
 
-## 사전작업 3: Admin서버에 MinIO + Docker Registry 구성
+## 사전작업 3: MinIO 구성
 
 ```bash
-# 데이터 디렉토리 생성
-sudo mkdir -p /data/minio /data/registry
-sudo chown -R ec2-user:ec2-user /data/minio /data/registry
+# 데이터 저장 경로 생성
+sudo mkdir -p /data/minio
+sudo chown -R $USER:$USER /data/minio
 
-# MinIO 설치
-wget https://dl.min.io/server/minio/release/linux-amd64/minio \
-  -O /usr/local/bin/minio && chmod +x /usr/local/bin/minio
+# MinIO 바이너리 설치
+sudo wget https://dl.min.io/server/minio/release/linux-amd64/minio \
+  -O /usr/local/bin/minio
+sudo chmod +x /usr/local/bin/minio
+
+# MinIO 클라이언트 설치
+sudo wget https://dl.min.io/client/mc/release/linux-amd64/mc \
+  -O /usr/local/bin/mc
+sudo chmod +x /usr/local/bin/mc
 
 # MinIO systemd 서비스 등록
 sudo mkdir -p /etc/minio
-sudo tee /etc/minio/minio.env > /dev/null <<EOF
+sudo tee /etc/minio/minio.env > /dev/null << 'EOF'
 MINIO_ROOT_USER=minioadmin
 MINIO_ROOT_PASSWORD=MinioPassword123!
 MINIO_VOLUMES=/data/minio
-MINIO_OPTS="--address :9000 --console-address :9001"
+MINIO_OPTS=--address :9000 --console-address :9001
 EOF
 
-sudo tee /etc/systemd/system/minio.service > /dev/null <<EOF
+sudo tee /etc/systemd/system/minio.service > /dev/null << 'EOF'
 [Unit]
 Description=MinIO Object Storage
 After=network-online.target
 
 [Service]
-User=ubuntu
-Group=ubuntu
+User=root
 EnvironmentFile=/etc/minio/minio.env
-ExecStart=/usr/local/bin/minio server \$MINIO_VOLUMES \$MINIO_OPTS
+ExecStart=/usr/local/bin/minio server $MINIO_VOLUMES $MINIO_OPTS
 Restart=always
 RestartSec=5
+LimitNOFILE=65536
 
 [Install]
 WantedBy=multi-user.target
@@ -137,25 +172,75 @@ sudo systemctl daemon-reload
 sudo systemctl enable minio
 sudo systemctl start minio
 
-# Docker Registry 실행
-docker run -d \
-  --name docker-registry \
-  --restart always \
-  -p 5000:5000 \
-  -v /data/registry:/var/lib/registry \
-  registry:2
+# 확인
+sleep 3
+sudo systemctl status minio | grep Active
+curl -s -o /dev/null -w "MinIO 상태: %{http_code}\n" \
+  http://localhost:9000/minio/health/live
 
-# MinIO 버킷 생성
-mc alias set local http://localhost:9000 minioadmin MinioPassword123!
+# MinIO 연결 설정
+mc alias set local http://localhost:9000 \
+  minioadmin MinioPassword123!
+
+# 버킷 생성
 mc mb local/ai-platform-bucket
 
+# 필수 폴더 구조 생성
+mc mb local/ai-platform-bucket/model_artifacts
+mc mb local/ai-platform-bucket/artifacts
+mc mb local/ai-platform-bucket/conversations
+mc mb local/ai-platform-bucket/config
+mc mb local/ai-platform-bucket/storage_queue
+
 # 확인
-echo "MinIO 상태:" && \
-  curl -s -o /dev/null -w "%{http_code}" \
-  http://localhost:9000/minio/health/live
-echo ""
-echo "Registry 상태:" && \
-  curl -s http://localhost:5000/v2/_catalog
+mc ls local/ai-platform-bucket
+```
+
+> AI 모델 다운로드 정보 확인 🔍
+
+README에 명시된 모델 목록(**HuggingFace**에서 다운로드):
+
+| 모델 ID | 용도 |
+|---------|------|
+| `gemma-4-31b-it` | 기본 LLM (채팅, SPL 생성) |
+| `gpt-oss-20b` | 보조 LLM |
+| `all-minilm-l6-v2` | 문장 임베딩 / 시맨틱 검색 |
+| `bi-encoder` | BGE 인코더 |
+| `cross-encoder` | MS MARCO 크로스 인코더 |
+| `e5-language-classifier` | 다국어 언어 감지 |
+| `mbart-translator` | 다국어 번역 |
+| `pii-classifier` | 개인정보 감지 |
+| `uae-large` | 임베딩 모델 |
+| `xlm-roberta-language-classifier` | 언어 분류기 |
+
+**총 10개 모델, 120GB 이상**
+
+> AI 모델을 다운로드하기 전에 yaml파일(my_cluster.yaml)에 object storage 경로 수정 필요
+```bash
+# AI 모델 자동 다운로드를 false로 설정
+  modelStaging:
+    enabled: false
+
+  objectStore:
+    type: "minio"                                # aws | s3compat | minio | seaweedfs (external only for non-aws)
+    bucket: "ai-platform-bucket-minio-us-east-2"
+    endpoint: "http://172.31.51.179:9000"              # CHANGE THIS: MinIO/SeaweedFS/S3 API endpoint
+    auth:
+      rootUser: "minioadmin"          # CHANGE THIS — AWS_ACCESS_KEY_ID (AKIA…) or MinIO root user
+      rootPassword: "MinioPassword123!"  # CHANGE THIS — AWS secret OR MinIO root password; NEVER commit real keys
+```
+
+> AI 모델을 수동으로 다운로드하는 방법
+
+```bash
+CONFIG_FILE=./my-cluster.yaml \
+  ./k0s_cluster_with_stack.sh stage-artifacts
+```
+
+> 모델 파일들이 다운로드 되는 경로
+
+```bash
+cd /home/ec2-user/splunk-ai-operator/tools/artifacts_download_upload_scripts/model_artifacts/
 ```
 
 ---
