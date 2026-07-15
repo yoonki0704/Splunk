@@ -593,3 +593,7 @@ kubectl get secret splunk-splunk-standalone-standalone-secret-v1 \
 ```
 localhost:18000
 ```
+
+## AI-Tier 내부 Splunk GUI접속후 AI Assistant for SPL 앱 설치
+VOC Portal에 AI Assistant for SPL 앱 다운로드 및 설치
+https://voc.splunk.com/alpha/aitierbaremetal?firstVisit=true
