@@ -571,3 +571,25 @@ ssh -i /root/.ssh/yoonki-key.pem ec2-user@172.31.43.176 "sudo k0s kubectl get no
 ssh -i /root/.ssh/yoonki-key.pem ec2-user@172.31.43.176 "sudo k0s kubectl get pods -A"
 ssh -i /root/.ssh/yoonki-key.pem ec2-user@172.31.43.176 "sudo k0s kubectl get pods -n ai-platform -w"
 ```
+
+## AI-Tier 내부 Splunk로 접속하기 위해 route 적용
+```
+ssh -i /Users/yoonki/Documents/ZZ_etc/yoonki-key.pem -L 18000:localhost:8000 ec2-user@54.180.149.137 \
+  "sudo k0s kubectl port-forward -n ai-platform svc/splunk-splunk-standalone-standalone-service 8000:8000 --address=0.0.0.0"
+```
+
+## AI-Tier 내부 Splunk 패스워드 확인
+```
+export KUBECONFIG=~/.kube/k0s-ai-cluster
+
+# Splunk admin 비밀번호 확인
+kubectl get secret splunk-splunk-standalone-standalone-secret-v1 \
+  -n ai-platform \
+  -o jsonpath='{.data.password}' | base64 --decode && echo
+```
+
+## AI-Tier 내부 Splunk GUI 접속
+브라우저 창에서
+```
+localhost:18000
+```
