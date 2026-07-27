@@ -44,7 +44,8 @@ DEPLOYMENT_GUIDE.md 기준으로 **최소 4대의 서버**가 필요합니다.
 | GPU Worker | **2대 필수** | `g6e.12xlarge` | 48코어 | 384GB | 550GB |
 | Admin (MinIO + Registry) | 1대 | `t3.xlarge` | - | - | **450GB** (모델 다운로드용) |
 
-> ⚠️ **중요:** GPU Worker는 **반드시 2대** 필요합니다. 1대로는 AI 추론 스택이 동작하지 않아요.
+> GPU Worker는 **반드시 2대** 필요합니다. (1대로는 AI 추론 스택이 동작하지 않아요.)
+> GPU hardware : NVIDIA L40S or H100
 
 ### Security Group 설정
 
