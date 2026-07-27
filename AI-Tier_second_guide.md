@@ -22,6 +22,13 @@
 ```
 AI-Tier Github - https://github.com/splunk/splunk-ai-operator/blob/main/tools/cluster_setup/DEPLOYMENT_GUIDE.md
 VOC Portal - https://voc.splunk.com/alpha/aitierbaremetal?firstVisit=true
+[VOC Download 링크]
+https://download.splunk.com/products/ai_tier/beta/0.2/linux/ray-worker-gpu-build-preview.tar
+https://download.splunk.com/products/ai_tier/beta/0.2/linux/saia-api-v2-build-preview.tar
+https://download.splunk.com/products/ai_tier/beta/0.2/linux/ray-head-build-preview.tar
+https://download.splunk.com/products/ai_tier/beta/0.2/linux/saia-data-loader-build-preview.tar
+https://download.splunk.com/products/ai_tier/beta/0.2/linux/saia-api-build-preview.tar
+https://download.splunk.com/products/ai_tier/beta/0.2/linux/Splunk_AI_Assistant_preview.tgz
 ```
 ---
 
