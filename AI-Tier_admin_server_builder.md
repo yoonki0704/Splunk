@@ -149,32 +149,59 @@ ls -lh /mnt/transfer/airgap-bundle-*.tar.gz
 ### 4-1: 이미지 목록 확인
 
 ```bash
-cd /mnt/transfer
-BUNDLE_DIR=$(ls -d airgap-bundle-*/ | head -1)
-cat ${BUNDLE_DIR}/container-images.txt
+# ── Splunk ──────────────────────────────────────────────────────────────────
+splunk/splunk:10.2.0
+docker.io/splunk/splunk-operator:3.0.0
+
+# ── Ray ─────────────────────────────────────────────────────────────────────
+# Set images.ray.headImage and images.ray.workerImage in config to your mirrors
+# (these are built internally — not on a public registry)
+
+# ── Weaviate ─────────────────────────────────────────────────────────────────
+docker.io/semitechnologies/weaviate:stable-v1.28-007846a
+
+# ── KubeRay Operator ─────────────────────────────────────────────────────────
+quay.io/kuberay/operator:v1.2.2
+
+# ── OpenTelemetry ─────────────────────────────────────────────────────────────
+docker.io/otel/opentelemetry-collector-contrib:0.122.1
+
+# ── Fluent Bit ────────────────────────────────────────────────────────────────
+docker.io/fluent/fluent-bit:1.9.6
+
+# ── Nginx ────────────────────────────────────────────────────────────────────
+docker.io/library/nginx:1.27-alpine
+
+# ── MetalLB (installed by Helm chart — the chart handles its own images) ─────
+# The metallb Helm chart pulls its own images; check the chart for the current
+# image tags after running: helm show values metallb/metallb --version 0.14.8
+
+# ── cert-manager (installed from manifest) ───────────────────────────────────
+# cert-manager manifest embeds image references; check the manifest for exact tags:
+# grep 'image:' manifests/cert-manager.yaml
+
+# ── Prometheus stack (Helm chart — many images) ──────────────────────────────
+# Run after pulling the chart: helm show values charts/kube-prometheus-stack-*.tgz
+# to get the full image list.
+
+# ── NOTE: Model weights (HuggingFace) ────────────────────────────────────────
+# Model weights (~60 GB total) are NOT container images.
+# Use tools/artifacts_download_upload_scripts/ to stage them separately.
+# Models: gemma-4-31b-it, gpt-oss-20b, all-minilm-l6-v2, bi-encoder,
+#         cross-encoder, e5-language-classifier, mbart-translator,
+#         pii-classifier, uae-large, xlm-roberta-language-classifier
 ```
 
 ### 4-2: 이미지 다운로드 (빌드 서버에서, 이전에 준 tar 파일 포함)
 
 ```bash
-# 이전에 사용했던 이미지들 다시 로드 (이미 tar 파일이 있다면)
-mkdir -p /mnt/transfer/app-images
-cd /mnt/transfer/app-images
-
-# 만약 /tmp에 있던 이전 tar 파일들을 재사용한다면
-docker load -i /tmp/ray-head-build-preview.tar 2>/dev/null || true
-docker load -i /tmp/ray-worker-gpu-build-preview.tar 2>/dev/null || true
-docker load -i /tmp/saia-api-build-preview.tar 2>/dev/null || true
-docker load -i /tmp/saia-api-v2-build-preview.tar 2>/dev/null || true
-docker load -i /tmp/saia-data-loader-build-preview.tar 2>/dev/null || true
-
-# 필요한 모든 이미지를 tar로 저장 (offline 전달용)
-docker save -o app-images-bundle.tar \
-  172.31.51.179:5000/ray/ray-head:build-953 \
-  172.31.51.179:5000/ray/ray-worker-gpu:build-953 \
-  172.31.51.179:5000/saia/saia-api:build-v2-main-c3b489d \
-  172.31.51.179:5000/saia/saia-api-v2:build-v2-main-c3b489d \
-  172.31.51.179:5000/saia/saia-data-loader:build-v2-main-c3b489d
+# VOC 포탈에서 이미지 다운로드
+https://download.splunk.com/products/ai_tier/beta/0.2/linux/ray-worker-gpu-build-preview.tar
+https://download.splunk.com/products/ai_tier/beta/0.2/linux/saia-api-v2-build-preview.tar
+https://download.splunk.com/products/ai_tier/beta/0.2/linux/ray-head-build-preview.tar
+https://download.splunk.com/products/ai_tier/beta/0.2/linux/saia-data-loader-build-preview.tar
+https://download.splunk.com/products/ai_tier/beta/0.2/linux/saia-api-build-preview.tar
+https://download.splunk.com/products/ai_tier/beta/0.2/linux/Splunk_AI_Assistant_preview.tgz
 
 # 공개 이미지들도 함께 저장 (Docker Hub 등 - 인터넷에서 미리 pull)
 docker pull docker.io/splunk/splunk-ai-operator:0.2.0
