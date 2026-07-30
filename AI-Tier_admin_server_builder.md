@@ -90,8 +90,12 @@ echo "=== 7. sqlite3 (kine WAL 문제 대비) ===" && \
 sudo dnf install --downloadonly --downloaddir=rpms sqlite -y
 
 echo "=== 8. Docker/Registry 관련 (로컬 레지스트리용) ===" && \
+sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo \
+sudo dnf makecache \
+dnf repolist | grep docker \
+cd /mnt/transfer/admin-tools \
 sudo dnf install --downloadonly --downloaddir=rpms \
-  docker-ce docker-ce-cli containerd.io -y 2>/dev/null || \
+  docker-ce docker-ce-cli containerd.io docker-compose-plugin -y \
 echo "docker repo 추가 필요 시 별도 진행"
 
 # 압축
