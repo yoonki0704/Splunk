@@ -364,7 +364,8 @@ echo "=== Registry 이미지 목록 ==="
 curl -s http://${REGISTRY}/v2/_catalog
 ```
 
-### ★ 클러스터 노드 사전 설정 (가장 중요!)
+### ★ 클러스터 노드 사전 설정 (가장 중요!) --> k0s_cluster_with_stack.sh 에서 image.registryInsecure: true 설정으로 해결됨
+(저의 노가다로 이 힘들고 어려운 과정을 단순화 했습니다.)
 
 **k0s 설치 전에** 모든 클러스터 노드에 Registry HTTP 허용 설정을 합니다:
 
