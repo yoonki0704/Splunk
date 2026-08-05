@@ -32,6 +32,8 @@ https://download.splunk.com/products/ai_tier/beta/0.2/linux/Splunk_AI_Assistant_
 ```
 ---
 
+## 사전작업 1: AI-Tier 설치 환경 준비
+
 ### 필요한 EC2 인스턴스 구성
 
 DEPLOYMENT_GUIDE.md 기준으로 **최소 4대의 서버**가 필요합니다.
