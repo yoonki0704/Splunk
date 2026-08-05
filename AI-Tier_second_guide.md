@@ -58,24 +58,24 @@ Inbound Rules:
 ┌─────────────┬───────────────┬───────────────────────┐
 │ Type        │ Port          │ Source                │
 ├─────────────┼───────────────┼───────────────────────┤
-│ Custom TCP  │ 8132          │ 0.0.0.0/0             │
-│ Custom TCP  │ 8088          │ 0.0.0.0/0             │
-│ Custom TCP  │ 8089          │ 0.0.0.0/0             │
-│ Custom TCP  │ 179           │ 0.0.0.0/0             │
-│ Custom TCP  │ 2380          │ 0.0.0.0/0             │
-│ Custom TCP  │ 8080          │ 0.0.0.0/0             │
-│ Custom TCP  │ 8265          │ 0.0.0.0/0             │
-│ Custom TCP  │ 10250         │ 0.0.0.0/0             │
-│ Custom TCP  │ 5000          │ 0.0.0.0/0             │
-│ Custom TCP  │ 8000          │ 0.0.0.0/0             │
-│ Custom TCP  │ 9000          │ 0.0.0.0/0             │
-│ Custom TCP  │ 9001          │ 0.0.0.0/0             │
-│ Custom TCP  │ 6443          │ 0.0.0.0/0             │
-│ Custom TCP  │ 30000 - 32767 │ 0.0.0.0/0             │
-│ Custom UDP  │ 4789          │ 0.0.0.0/0             │
-│ HTTP        │ 80            │ 0.0.0.0/0             │
-│ HTTPS       │ 443           │ 0.0.0.0/0             │
-│ SSH         │ 22            │ 0.0.0.0/0             │
+│ Custom TCP  │ 8132          │ 172.31.0.0/0          │
+│ Custom TCP  │ 8088          │ 172.31.0.0/0          │
+│ Custom TCP  │ 8089          │ 172.31.0.0/0          │
+│ Custom TCP  │ 179           │ 172.31.0.0/0          │
+│ Custom TCP  │ 2380          │ 172.31.0.0/0          │
+│ Custom TCP  │ 8080          │ 172.31.0.0/0          │
+│ Custom TCP  │ 8265          │ 172.31.0.0/0          │
+│ Custom TCP  │ 10250         │ 172.31.0.0/0          │
+│ Custom TCP  │ 5000          │ 172.31.0.0/0          │
+│ Custom TCP  │ 8000          │ 172.31.0.0/0          │
+│ Custom TCP  │ 9000          │ 172.31.0.0/0          │
+│ Custom TCP  │ 9001          │ 172.31.0.0/0          │
+│ Custom TCP  │ 6443          │ 172.31.0.0/0          │
+│ Custom TCP  │ 30000 - 32767 │ 172.31.0.0/0          │
+│ Custom UDP  │ 4789          │ 172.31.0.0/0          │
+│ HTTP        │ 80            │ 172.31.0.0/0          │
+│ HTTPS       │ 443           │ 172.31.0.0/0          │
+│ SSH         │ 22            │ 172.31.0.0/0          │
 └─────────────┴───────────────┴───────────────────────┘
 ```
 
@@ -329,7 +329,7 @@ wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/Splunk_AI_Assis
 ### 컨테이너 이미지 Push
 
 ```bash
-REGISTRY_IP=$172.31.51.179
+REGISTRY_IP=172.31.51.179
 REGISTRY="${REGISTRY_IP}:5000"
 
 # /tmp의 tar 파일 로드 및 push
@@ -564,7 +564,7 @@ ecr:
 cd splunk-ai-operator/tools/cluster_setup
 
 # Step 1: 검증
-CONFIG_FILE=./my_cluster.yaml \
+CONFIG_FILE=./my-cluster.yaml \
   ./k0s_cluster_with_stack.sh validate
 
 # Step 2: 설치 (검증 통과 후)
