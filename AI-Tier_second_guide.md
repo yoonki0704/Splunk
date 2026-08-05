@@ -223,6 +223,16 @@ mc mb local/ai-platform-bucket/storage_queue
 mc ls local/ai-platform-bucket
 ```
 
+## 사전작업 4: Splunk AI Operator GitHub 레포지토리 클론
+
+```bash
+git clone https://github.com/splunk/splunk-ai-operator.git
+cd splunk-ai-operator/tools/cluster_setup
+
+# 파일 확인
+ls -la
+```
+
 > AI 모델 다운로드 정보 확인 🔍
 
 README에 명시된 모델 목록(**HuggingFace**에서 다운로드):
