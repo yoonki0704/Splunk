@@ -227,15 +227,6 @@ mc ls local/ai-platform-bucket
 
 ## 사전작업 4: Splunk AI Operator 설치 준비
 
->> Splunk AI Operator Github 레포지토리 클론
-
-```bash
-git clone https://github.com/splunk/splunk-ai-operator.git
-cd splunk-ai-operator/tools/cluster_setup
-
-# 파일 확인
-ls -la
-```
 
 > AI 모델 다운로드 정보 확인 🔍
 
@@ -255,6 +246,17 @@ README에 명시된 모델 목록(**HuggingFace**에서 다운로드):
 | `xlm-roberta-language-classifier` | 언어 분류기 |
 
 **총 10개 모델, 120GB 이상**
+
+>> Splunk AI Operator Github 레포지토리 클론
+
+```bash
+git clone https://github.com/splunk/splunk-ai-operator.git
+cd splunk-ai-operator/tools/cluster_setup
+
+# 파일 확인
+ls -la
+```
+
 > my-cluster.yaml 설정 (k0s-cluster-config.yaml 파일을 복제)
 ```bash
 cp k0s-cluster-config.yaml my-cluster.yaml
@@ -434,10 +436,6 @@ done
 ## 사전작업 5: yaml 파일 작성
 
 ```bash
-# 레포지토리 클론
-git clone https://github.com/splunk/splunk-ai-operator.git
-cd splunk-ai-operator/tools/cluster_setup
-cp k0s-cluster-config.yaml my-cluster.yaml
 
 # Registry IP 확인
 REGISTRY_IP=172.31.51.179
