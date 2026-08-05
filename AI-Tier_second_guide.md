@@ -34,9 +34,9 @@ https://download.splunk.com/products/ai_tier/beta/0.2/linux/Splunk_AI_Assistant_
 
 ## 사전작업 1: AI-Tier 설치 환경 준비
 
-### 필요한 EC2 인스턴스 구성
+>> 필요한 EC2 인스턴스 구성
 
-DEPLOYMENT_GUIDE.md 기준으로 **최소 4대의 서버**가 필요합니다.
+DEPLOYMENT_GUIDE.md 기준으로 **최소 5대의 서버**가 필요합니다.
 > OS : RHEL version 9
 
 | 역할 | 수량 | 권장 인스턴스 | CPU | RAM | 디스크 |
@@ -49,7 +49,7 @@ DEPLOYMENT_GUIDE.md 기준으로 **최소 4대의 서버**가 필요합니다.
 > GPU Worker는 **반드시 2대** 필요합니다. (1대로는 AI 추론 스택이 동작하지 않아요.)
 > GPU hardware : NVIDIA L40S or H100
 
-### Security Group 설정
+>> Security Group 설정
 
 **클러스터 전용 Security Group 1개 생성:**
 
@@ -85,7 +85,7 @@ Inbound Rules:
 
 ## 사전작업 2: Admin 서버 도구 설치
 
-Admin 서버에서 실행:
+>> Admin 서버에서 사용할 도구들 설치:
 
 ```bash
 # 기본 도구 설치
@@ -154,8 +154,8 @@ sudo systemctl status docker | grep Active
 
 ---
 
-## 사전작업 3: MinIO 구성
-
+## 사전작업 3: Admin 서버 MinIO 구성
+>> MinIO(Object Storage) 설치
 ```bash
 # 데이터 저장 경로 생성
 sudo mkdir -p /data/minio
@@ -225,7 +225,9 @@ mc mb local/ai-platform-bucket/storage_queue
 mc ls local/ai-platform-bucket
 ```
 
-## 사전작업 4: Splunk AI Operator GitHub 레포지토리 클론
+## 사전작업 4: Splunk AI Operator 설치 준비
+
+>> Splunk AI Operator Github 레포지토리 클론
 
 ```bash
 git clone https://github.com/splunk/splunk-ai-operator.git
@@ -289,8 +291,9 @@ cd /home/ec2-user/splunk-ai-operator/tools/artifacts_download_upload_scripts/mod
 
 ---
 
-## 사전작업 4: Admin 서버에서 Docker Registry HTTP 허용 설정
+## 사전작업 4: Admin 서버에서 Docker 설정
 
+>> Docker Registry HTTP 허용 설정
 ```bash
 # Admin 서버에서 실행
 REGISTRY_IP=172.31.51.179
@@ -308,7 +311,7 @@ docker start docker-registry
 # 확인
 curl -s http://${REGISTRY_IP}:5000/v2/_catalog
 ```
-### 컨테이너 이미지 Download
+>> 컨테이너 이미지 Download
 ```bash
 wget https://download.splunk.com/products/ai_tier/beta/0.2/linux/ray-worker-gpu-build-preview.tar
 
