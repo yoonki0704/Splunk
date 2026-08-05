@@ -251,8 +251,13 @@ README에 명시된 모델 목록(**HuggingFace**에서 다운로드):
 | `xlm-roberta-language-classifier` | 언어 분류기 |
 
 **총 10개 모델, 120GB 이상**
+> my-cluster.yaml 설정 (k0s-cluster-config.yaml 파일을 복제)
+```bash
+cp k0s-cluster-config.yaml my-cluster.yaml
+vi my-cluster.yaml
+```
 
-> AI 모델을 다운로드하기 전에 yaml파일(my_cluster.yaml)에 object storage 경로 수정 필요
+> AI 모델을 다운로드하기 전에 yaml파일(my-cluster.yaml)에 object storage 경로 수정 필요
 ```bash
 # AI 모델 자동 다운로드를 false로 설정
   modelStaging:
