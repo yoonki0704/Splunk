@@ -129,6 +129,10 @@ jq --version && \
 yq --version && \
 aws --version
 
+# (버전 정보가 안보일 경우)
+echo 'export PATH=$PATH:/usr/local/bin' >> ~/.bashrc
+source ~/.bashrc
+
 ## Docker 설치
 # RHEL에서 Docker 설치
 sudo yum install -y yum-utils
