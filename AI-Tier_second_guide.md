@@ -295,6 +295,18 @@ cd /home/ec2-user/splunk-ai-operator/tools/artifacts_download_upload_scripts/mod
 
 ## 사전작업 4: Admin 서버에서 Docker 설정
 
+>> Docker Registry 컨테이너 최초 생성
+```bash
+sudo mkdir -p /data/registry
+
+docker run -d \
+  --name docker-registry \
+  --restart always \
+  -p 5000:5000 \
+  -v /data/registry:/var/lib/registry \
+  registry:2
+```
+
 >> Docker Registry HTTP 허용 설정
 ```bash
 # Admin 서버에서 실행
