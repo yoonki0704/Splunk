@@ -355,6 +355,24 @@ done
 # 로드된 이미지 확인
 docker images
 
+# 이미지 태깅 및 push (실제 이미지명으로 수정)
+ECR="658391232643.dkr.ecr.us-east-2.amazonaws.com/ml-platform"
+
+declare -A IMAGE_MAP=(
+["${ECR}/ray/ray-head:build-953"]="ray/ray-head:build-953"
+["${ECR}/ray/ray-worker-gpu:build-953"]="ray/ray-worker-gpu:build-953"
+["${ECR}/saia/saia-api:build-v2-main-c3b489d"]="saia/saia-api:build-v2-main-c3b489d"
+["${ECR}/saia/saia-api-v2:build-v2-main-c3b489d"]="saia/saia-api-v2:build-v2-main-c3b489d"
+["${ECR}/saia/saia-data-loader:build-v2-main-c3b489d"]="saia/saia-data-loader:build-v2-main-c3b489d"
+)
+
+for SRC in "${!IMAGE_MAP[@]}"; do
+DEST="${REGISTRY}/${IMAGE_MAP[$SRC]}"
+echo "=== Push: ${DEST} ==="
+docker tag "${SRC}" "${DEST}"
+docker push "${DEST}"
+done
+
 # Push 완료 확인
 echo "=== Registry 이미지 목록 ==="
 curl -s http://${REGISTRY}/v2/_catalog
