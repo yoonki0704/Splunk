@@ -1,0 +1,143 @@
+// cursor-canvas-title: AI-Tier 설치 가이드 (GA 1.0)
+import { Callout, Card, CardBody, CardHeader, Code, Divider, H1, H2, Stack, Table, Text } from "cursor/canvas";
+
+export default function AiTierInstallGuide() {
+  return (
+    <Stack gap={20}>
+      <Stack gap={8}>
+        <H1>AI-Tier 설치 가이드 (GA 1.0)</H1>
+        <Text tone="secondary">
+          베타 0.2 랩 런북을 Splunk AI Tier GA 1.0 기준으로 다시 정리한 실습 가이드입니다.
+        </Text>
+      </Stack>
+
+      <Callout tone="warning" title="채팅의 md 링크가 열리지 않는 이유">
+        이 Cloud Agent 세션에는 Git 저장소가 없습니다. 파일은 에이전트 VM의
+        /agent/AI-Tier_second_guide.md 에만 있어서, 채팅 경로를 눌러도 로컬 Cursor
+        파일 트리나 Files 탭에 나타나지 않습니다. 가이드는 이 캔버스에서 보면 됩니다.
+        로컬 md 파일이 필요하면 아래 본문을 복사해 AI-Tier_second_guide.md 로 저장하세요.
+      </Callout>
+
+      <Table
+        headers={["항목", "값"]}
+        rows={[
+          ["작업 디렉터리", "tools/ai-tier-cluster-setup"],
+          ["이미지", "docker.io/splunk/ai-tier-*:v1.0"],
+          ["Splunk Enterprise", "10.2"],
+          ["AI Assistant", "2.3.0 (Splunkbase 7245)"],
+          ["AI Toolkit", ">= 6.1.0 (Splunkbase 2890)"],
+          ["최소 노드", "Controller 1 + CPU Worker 1 + GPU Worker 2 + Admin 1"],
+          ["GPU", "L40S (g6e.12xlarge x2) 또는 H100 (p5.4xlarge x2), 둘 중 하나만"],
+          ["설치기 OS", "RHEL 9.8 또는 RHEL 10.2"],
+        ]}
+      />
+
+      <H2>진행 순서</H2>
+      <Table
+        headers={["단계", "내용"]}
+        rows={[
+          ["0", "표준 vs 에어갭 선택"],
+          ["1", "EC2 / OS / Security Group"],
+          ["2", "Admin 도구: kubectl v1.36.1, helm, yq v4.44.1, crane"],
+          ["3", "MinIO (버킷 소문자, yaml과 이름 동일)"],
+          ["4", "에어갭만: HTTP Registry + crane으로 v1.0 이미지 전체 미러"],
+          ["5", "git clone 후 my-cluster-config.yaml"],
+          ["설치", "tmux 안에서 validate → install → verify-pods"],
+          ["연동", "Splunk Web + Assistant 2.3.0 + Toolkit 6.1.0"],
+        ]}
+      />
+
+      <H2>표준 vs 에어갭</H2>
+      <Table
+        headers={["조건", "경로", "yaml 포인트"]}
+        rows={[
+          ["노드가 Docker Hub pull 가능", "표준", "airgap 없음, images.registry 비움, docker.io FQDN 유지"],
+          ["노드 인터넷 없음 / 내부 레지스트리만", "에어갭", "cluster.airgap: true, registry + 상대 경로, registryInsecure: true (HTTP)"],
+        ]}
+      />
+      <Text>
+        설치 명령은 같습니다. `CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh install`
+      </Text>
+
+      <H2>Clone과 설치</H2>
+      <Card>
+        <CardHeader>작업 디렉터리 (베타 cluster_setup 아님)</CardHeader>
+        <CardBody>
+          <Text>
+            `git clone -b &lt;branch-name&gt; --single-branch https://github.com/splunk/splunk-ai-operator.git`
+          </Text>
+          <Text>
+            `cd splunk-ai-operator/tools/ai-tier-cluster-setup`
+          </Text>
+          <Text>
+            표준: `cp k0s-cluster-config.yaml my-cluster-config.yaml`
+          </Text>
+          <Text>
+            에어갭: `cp k0s-airgapped-config.yaml my-cluster-config.yaml`
+          </Text>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader>validate / install / verify</CardHeader>
+        <CardBody>
+          <Text>`tmux new -s splunk-ai-install`</Text>
+          <Text>`CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh validate`</Text>
+          <Text>`CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh install`</Text>
+          <Text>`CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh verify-pods`</Text>
+          <Text tone="secondary">첫 설치 3–7시간(모델), 사전 스테이징 시 30–60분. validate와 install은 같은 CONFIG_FILE.</Text>
+        </CardBody>
+      </Card>
+
+      <H2>yaml에서 빠지면 깨지는 항목</H2>
+      <Table
+        headers={["필드", "GA에서 필요한 값"]}
+        rows={[
+          ["워커 IP 순서", "CPU 먼저, 그다음 GPU. cpuWorkers 개수와 일치"],
+          ["images.operator / saia / ray", "splunk/...:v1.0 (베타 build-953, operator 0.2.0 금지)"],
+          ["images.slim.apiImage", "splunk/ai-tier-slim-service:v1.0"],
+          ["aiPlatform.features", "saia 1.1.0 + slim 1.0.0"],
+          ["serviceTemplate", "NodePort 30080 (SAIA), slimNodePort 30081"],
+          ["minimumDiskSpace", "controller 100 / cpu 200 / gpu 500"],
+          ["에어갭 images", "상대 경로. docker.io FQDN이면 registry prefix가 안 붙음"],
+        ]}
+      />
+
+      <H2>앱 연동</H2>
+      <Table
+        headers={["앱", "연결"]}
+        rows={[
+          ["Assistant 2.3.0", "SAIA. NodePort: http://<worker-ip>:30080 . 앱에 127.0.0.1 저장 금지"],
+          ["Toolkit >= 6.1.0", "SLIM. http://<worker-ip>:30081/tenant/slim-api/v1alpha1"],
+          ["내장 Splunk Web", "ClusterIP. kubectl port-forward ... 8000:8000"],
+        ]}
+      />
+
+      <Callout tone="info" title="공식 문서">
+        Quick Reference: https://github.com/splunk/splunk-ai-operator/blob/main/docs/ai-tier-docs/k0s-quick-reference.md
+        {"\n"}
+        Help: https://help.splunk.com/en/splunk-enterprise/deploy-ai-tier/1.0.0/install-ai-tier
+      </Callout>
+
+      <Divider />
+
+      <H2>베타 가이드에서 바뀐 점</H2>
+      <Table
+        headers={["구 (베타 0.2)", "지금 (GA 1.0)"]}
+        rows={[
+          ["tools/cluster_setup", "tools/ai-tier-cluster-setup"],
+          ["VOC / beta/0.2 tar", "Docker Hub splunk/ai-tier-*:v1.0 + crane copy"],
+          ["saia만", "saia + slim"],
+          ["Assistant preview.tgz", "Splunkbase Assistant 2.3.0"],
+          ["노드마다 hosts.toml 수동", "images.registryInsecure: true"],
+          ["my-cluster.yaml", "my-cluster-config.yaml"],
+        ]}
+      />
+
+      <Text tone="secondary">
+        자격 증명, SSH 키, 계정 ID는 이 가이드에 넣지 않았습니다. MinIO 비밀번호는
+        /etc/minio/minio.env 에만 두고 chmod 600 하세요.
+      </Text>
+    </Stack>
+  );
+}
