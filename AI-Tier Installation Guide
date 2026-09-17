@@ -1,10 +1,15 @@
-AI-Tier 설치 가이드 (GA 1.0)
-베타 0.2 랩 런북을 Splunk AI Tier GA 1.0 기준으로 다시 정리한 문서입니다.
+# AI-Tier 설치 가이드 (GA 1.0)
+
+베타 0.2 랩 런북을 **Splunk AI Tier GA 1.0** 기준으로 다시 정리한 문서입니다.  
 AWS EC2 + Admin(MinIO) + k0s 클러스터 구성으로 설치하는 실습용 가이드입니다.
 
-이 문서는 자격 증명·키·계정 ID를 넣지 않습니다. MinIO 비밀번호, SSH 키, 레지스트리 인증 정보는 각자 환경에서만 설정하세요.
+> 이 문서는 자격 증명·키·계정 ID를 넣지 않습니다. MinIO 비밀번호, SSH 키, 레지스트리 인증 정보는 각자 환경에서만 설정하세요.
 
-전체 진행 순서
+---
+
+## 전체 진행 순서
+
+```
 [사전작업 0] 표준 vs 에어갭 선택
       ↓
 [사전작업 1] EC2 인스턴스 준비
@@ -20,7 +25,13 @@ AWS EC2 + Admin(MinIO) + k0s 클러스터 구성으로 설치하는 실습용 �
 [설치 실행] tmux → validate → install → verify-pods
       ↓
 [앱 연동] Splunk Web → AI Assistant 2.3.0 → AI Toolkit 6.1.0
-참고 링크
+```
+
+---
+
+## 참고 링크
+
+```
 공식 Help
   https://help.splunk.com/en/splunk-enterprise/deploy-ai-tier/1.0.0/install-ai-tier
 
@@ -40,58 +51,84 @@ Splunkbase
   AI tier              https://splunkbase.splunk.com/app/9666
   Splunk AI Assistant  https://splunkbase.splunk.com/app/7245   (2.3.0)
   Splunk AI Toolkit    https://splunkbase.splunk.com/app/2890   (>= 6.1.0)
-쓰지 말 것: VOC Portal, download.splunk.com/products/ai_tier/beta/0.2/*.tar, Splunk_AI_Assistant_preview.tgz
-그건 베타 0.2 경로입니다. GA는 Docker Hub splunk/ai-tier-*:v1.0 + Splunkbase 앱입니다.
+```
 
-이 릴리스에서 검증된 버전
-컴포넌트	버전
-Splunk Enterprise	10.2 (docker.io/splunk/splunk:10.2-rhel9)
-Splunk AI Assistant	2.3.0 (Splunk_AI_Assistant_Cloud.tgz)
-Splunk AI Toolkit	>= 6.1.0 (Splunk_ML_Toolkit.tgz)
-AI Tier / Splunk AI Operator	v1.0
-SAIA / SLIM / Ray 이미지	v1.0
-Ray runtime	2.56.0
-k0s (Kubernetes)	v1.31+ (검증: v1.36.1)
+> 쓰지 말 것: VOC Portal, `download.splunk.com/products/ai_tier/beta/0.2/*.tar`, `Splunk_AI_Assistant_preview.tgz`  
+> 그건 베타 0.2 경로입니다. GA는 Docker Hub `splunk/ai-tier-*:v1.0` + Splunkbase 앱입니다.
+
+---
+
+## 이 릴리스에서 검증된 버전
+
+| 컴포넌트 | 버전 |
+|----------|------|
+| Splunk Enterprise | **10.2** (`docker.io/splunk/splunk:10.2-rhel9`) |
+| Splunk AI Assistant | **2.3.0** (`Splunk_AI_Assistant_Cloud.tgz`) |
+| Splunk AI Toolkit | **>= 6.1.0** (`Splunk_ML_Toolkit.tgz`) |
+| AI Tier / Splunk AI Operator | **v1.0** |
+| SAIA / SLIM / Ray 이미지 | **v1.0** |
+| Ray runtime | **2.56.0** |
+| k0s (Kubernetes) | v1.31+ (검증: **v1.36.1**) |
+
 표 밖 조합은 이 릴리스에서 검증되지 않았습니다.
 
-사전작업 0: 표준 vs 에어갭 선택
-시나리오	설치기 인터넷	클러스터 노드 인터넷	경로
-AWS/온프레, 노드가 Docker Hub pull 가능	있음	있음	표준 — Registry 생략 가능
-노드가 인터넷 없음, 또는 프라이빗 레지스트리만 허용	있음	없음	에어갭 — Registry + 이미지 미러 필수
+---
+
+## 사전작업 0: 표준 vs 에어갭 선택
+
+| 시나리오 | 설치기 인터넷 | 클러스터 노드 인터넷 | 경로 |
+|----------|---------------|----------------------|------|
+| AWS/온프레, 노드가 Docker Hub pull 가능 | 있음 | 있음 | **표준** — Registry 생략 가능 |
+| 노드가 인터넷 없음, 또는 프라이빗 레지스트리만 허용 | 있음 | 없음 | **에어갭** — Registry + 이미지 미러 필수 |
+
 설치 명령은 같습니다. 설정만 다릅니다.
 
-bash
+```bash
 CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh install
-표준: cluster.airgap 생략(또는 false), images.registry 비움, Docker Hub FQDN 이미지 사용
-에어갭: cluster.airgap: true, images.registry = 내부 레지스트리, 상대 경로 이미지 사용
-이 가이드의 기본 실습은 Admin 서버에 MinIO를 두고, 필요하면 같은 서버에 HTTP Registry(:5000)를 올리는 구성입니다.
+```
 
-사전작업 1: AI-Tier 설치 환경 준비
-OS 매트릭스
-역할	지원 OS
-설치기 (Admin)	RHEL 9.8 또는 RHEL 10.2 (x86_64만). Ubuntu/macOS는 설치기로 지원되지 않음
-클러스터 노드	RHEL 9.8, RHEL 10.2, 또는 Ubuntu 24.04 — 클러스터 전체 동일 OS/버전
-에어갭 + Ubuntu GPU 노드	설치기는 RHEL 9.8 + Podman/Docker
-에어갭 + RHEL 노드	설치기 RHEL 버전을 노드와 맞춤 (9.8↔9.8, 10.2↔10.2)
-AWS 실습 기본값: Admin = RHEL 9.8, 노드 = RHEL 9.8, SSH 사용자 = ec2-user.
+- 표준: `cluster.airgap` 생략(또는 `false`), `images.registry` 비움, Docker Hub FQDN 이미지 사용
+- 에어갭: `cluster.airgap: true`, `images.registry` = 내부 레지스트리, **상대 경로** 이미지 사용
 
-필요한 EC2 구성
-최소 5대입니다. GPU Worker는 반드시 2대입니다. GPU는 L40S 또는 H100 중 하나만 고릅니다.
+이 가이드의 기본 실습은 **Admin 서버에 MinIO**를 두고, 필요하면 같은 서버에 HTTP Registry(`:5000`)를 올리는 구성입니다.
 
-역할	수량	권장 인스턴스	CPU	RAM	디스크
-Controller	1대	m5.2xlarge	4코어	8GB	150GB (/var/lib/k0s 최소 100GB)
-CPU Worker	1대+	m5.4xlarge	8코어	32GB	250GB (/var/lib/k0s 최소 200GB)
-GPU Worker (L40S)	2대 필수	g6e.12xlarge	48 vCPU	384GiB	550GB (/var/lib/k0s 최소 500GB)
-GPU Worker (H100)	2대 필수	p5.4xlarge	16 vCPU	256GiB	550GB (/var/lib/k0s 최소 500GB)
-Admin (설치기 + MinIO)	1대	t3.xlarge 이상	4코어+	16GB+	모델 스테이징 시 250GB+, Registry까지 쓰면 +30GB
-GPU 1대는 부족합니다. 추론 스택이 두 GPU 노드에 나뉩니다.
-Controller HA는 미지원입니다. 컨트롤러 IP는 1개만 넣습니다.
-랩에서 Controller+CPU를 한 머신에 합치는 것은 테스트용이며 프로덕션 미지원입니다.
+---
 
-Security Group
-클러스터 전용 SG 1개를 만들고 Admin 포함 모든 인스턴스에 붙입니다.
-Source는 0.0.0.0/0이 아니라 VPC CIDR (예: 172.31.0.0/16)로 제한하세요.
+## 사전작업 1: AI-Tier 설치 환경 준비
 
+### OS 매트릭스
+
+| 역할 | 지원 OS |
+|------|---------|
+| **설치기 (Admin)** | **RHEL 9.8** 또는 **RHEL 10.2** (x86_64만). Ubuntu/macOS는 설치기로 지원되지 않음 |
+| **클러스터 노드** | RHEL 9.8, RHEL 10.2, 또는 Ubuntu 24.04 — **클러스터 전체 동일 OS/버전** |
+| 에어갭 + Ubuntu GPU 노드 | 설치기는 **RHEL 9.8** + Podman/Docker |
+| 에어갭 + RHEL 노드 | 설치기 RHEL 버전을 **노드와 맞춤** (9.8↔9.8, 10.2↔10.2) |
+
+AWS 실습 기본값: Admin = RHEL 9.8, 노드 = RHEL 9.8, SSH 사용자 = `ec2-user`.
+
+### 필요한 EC2 구성
+
+최소 **5대**입니다. GPU Worker는 **반드시 2대**입니다. GPU는 **L40S 또는 H100 중 하나만** 고릅니다.
+
+| 역할 | 수량 | 권장 인스턴스 | CPU | RAM | 디스크 |
+|------|------|---------------|-----|-----|--------|
+| Controller | 1대 | `m5.2xlarge` | 4코어 | 8GB | 150GB (`/var/lib/k0s` 최소 100GB) |
+| CPU Worker | 1대+ | `m5.4xlarge` | 8코어 | 32GB | 250GB (`/var/lib/k0s` 최소 200GB) |
+| GPU Worker (L40S) | **2대 필수** | `g6e.12xlarge` | 48 vCPU | 384GiB | 550GB (`/var/lib/k0s` 최소 500GB) |
+| GPU Worker (H100) | **2대 필수** | `p5.4xlarge` | 16 vCPU | 256GiB | 550GB (`/var/lib/k0s` 최소 500GB) |
+| Admin (설치기 + MinIO) | 1대 | `t3.xlarge` 이상 | 4코어+ | 16GB+ | **모델 스테이징 시 250GB+**, Registry까지 쓰면 **+30GB** |
+
+> GPU 1대는 부족합니다. 추론 스택이 두 GPU 노드에 나뉩니다.  
+> Controller HA는 **미지원**입니다. 컨트롤러 IP는 **1개만** 넣습니다.  
+> 랩에서 Controller+CPU를 한 머신에 합치는 것은 테스트용이며 프로덕션 미지원입니다.
+
+### Security Group
+
+클러스터 전용 SG 1개를 만들고 **Admin 포함 모든 인스턴스**에 붙입니다.  
+Source는 `0.0.0.0/0`이 아니라 **VPC CIDR** (예: `172.31.0.0/16`)로 제한하세요.
+
+```
 Inbound Rules (Source = <VPC_CIDR>):
 ┌─────────────┬───────────────┬────────────────────────────┐
 │ Type        │ Port          │ Purpose                    │
@@ -110,14 +147,19 @@ Inbound Rules (Source = <VPC_CIDR>):
 │ Custom TCP  │ 8000          │ Splunk Web (필요 시)       │
 │ Custom TCP  │ 8089          │ Splunk management / JWKS   │
 └─────────────┴───────────────┴────────────────────────────┘
-공식 최소 포트는 22 / 6443 / 2380 / 10250 / 8132 / 179 / 4789(UDP) 입니다.
+```
+
+공식 최소 포트는 22 / 6443 / 2380 / 10250 / 8132 / 179 / 4789(UDP) 입니다.  
 9000·5000·8000·8089는 이 실습(MinIO, Registry, Splunk)용입니다.
 
-사전작업 2: Admin 서버 도구 설치
-Admin = 설치기입니다. 클러스터 노드가 아닙니다.
+---
+
+## 사전작업 2: Admin 서버 도구 설치
+
+Admin = 설치기입니다. 클러스터 노드가 아닙니다.  
 모든 노드로 SSH가 되어야 하고, 모델 스테이징을 여기서 하면 디스크 250GB+, RAM 16GB가 필요합니다.
 
-bash
+```bash
 sudo dnf install -y ca-certificates curl git jq openssh-clients tar wget tmux
 
 # kubectl — k0s 기본 버전과 맞춤 (v1.36.1)
@@ -139,33 +181,43 @@ curl -fsSL https://github.com/google/go-containerregistry/releases/download/v0.2
 tar -xzf /tmp/crane.tar.gz -C /tmp crane
 sudo install -o root -g root -m 0755 /tmp/crane /usr/local/bin/crane
 rm -f /tmp/crane.tar.gz /tmp/crane
+```
+
 확인:
 
-bash
+```bash
 kubectl version --client
 helm version
 git --version
 jq --version
 yq --version
 crane version
+```
+
 에어갭이고 GPU 노드가 RHEL이면:
 
-bash
+```bash
 sudo dnf install -y createrepo_c
+```
+
 에어갭이고 GPU 노드가 Ubuntu 24.04이면:
 
-bash
+```bash
 sudo dnf install -y podman
-Docker는 선택입니다. crane copy를 쓰면 설치하지 않아도 됩니다.
+```
+
+Docker는 **선택**입니다. `crane copy`를 쓰면 설치하지 않아도 됩니다.  
 표준 배포(노드가 Docker Hub pull)면 crane/Docker/Registry 모두 생략 가능합니다.
 
 SSH 키 권한:
 
-bash
+```bash
 chmod 600 /path/to/private-key
+```
+
 노드마다 확인:
 
-bash
+```bash
 # 각 노드에서
 cat /etc/os-release          # RHEL 9.8 / 10.2 또는 Ubuntu 24.04
 sudo -n true && echo "passwordless sudo OK"
@@ -173,20 +225,27 @@ python3 --version            # 3.8+
 
 # 설치기에서
 ssh -i /path/to/private-key <SSH_USER>@<NODE_IP> hostname
+```
+
 passwordless sudo가 없으면 각 노드에서 (한 번만):
 
-bash
+```bash
 echo '<SSH_USER> ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/<SSH_USER>
 sudo chmod 440 /etc/sudoers.d/<SSH_USER>
-GPU 드라이버는 직접 설치하지 않습니다. 표준 경로에서는 install이 자동 설치하고, 에어갭에서는 설치기가 오프라인 클로저를 만들어 노드로 푸시합니다.
+```
 
-사전작업 3: Admin 서버 MinIO 구성
-오브젝트 스토어는 설치기가 클러스터 안에 올리지 않습니다. MinIO / SeaweedFS / S3를 미리 준비합니다.
-버킷 500GB+ 권장 (모델 250GB+ + 런타임 100GB+).
+GPU 드라이버는 **직접 설치하지 않습니다.** 표준 경로에서는 install이 자동 설치하고, 에어갭에서는 설치기가 오프라인 클로저를 만들어 노드로 푸시합니다.
+
+---
+
+## 사전작업 3: Admin 서버 MinIO 구성
+
+오브젝트 스토어는 **설치기가 클러스터 안에 올리지 않습니다.** MinIO / SeaweedFS / S3를 미리 준비합니다.  
+버킷 **500GB+** 권장 (모델 250GB+ + 런타임 100GB+).
 
 자격 증명은 파일에 넣고 권한을 제한하세요. 가이드나 Git에 실제 비밀번호를 넣지 마세요.
 
-bash
+```bash
 sudo mkdir -p /data/minio /etc/minio
 sudo chown -R "$USER:$USER" /data/minio
 
@@ -198,9 +257,11 @@ sudo chmod +x /usr/local/bin/minio
 sudo curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc \
   -o /usr/local/bin/mc
 sudo chmod +x /usr/local/bin/mc
-/etc/minio/minio.env 작성 (값은 직접 채움):
+```
 
-bash
+`/etc/minio/minio.env` 작성 (값은 직접 채움):
+
+```bash
 sudo tee /etc/minio/minio.env > /dev/null << 'EOF'
 MINIO_ROOT_USER=<MINIO_ROOT_USER>
 MINIO_ROOT_PASSWORD=<MINIO_ROOT_PASSWORD>
@@ -208,9 +269,11 @@ MINIO_VOLUMES=/data/minio
 MINIO_OPTS=--address :9000 --console-address :9001
 EOF
 sudo chmod 600 /etc/minio/minio.env
+```
+
 systemd:
 
-bash
+```bash
 sudo tee /etc/systemd/system/minio.service > /dev/null << 'EOF'
 [Unit]
 Description=MinIO Object Storage
@@ -233,26 +296,37 @@ sudo systemctl enable --now minio
 sleep 3
 sudo systemctl is-active minio
 curl -s -o /dev/null -w "MinIO live: %{http_code}\n" http://127.0.0.1:9000/minio/health/live
-버킷 생성 (버킷 이름은 소문자, yaml과 동일하게):
+```
 
-bash
+버킷 생성 (버킷 이름은 **소문자**, yaml과 **동일**하게):
+
+```bash
 # 셸에서만 사용. 히스토리에 남지 않게 주의
 mc alias set local http://127.0.0.1:9000 "<MINIO_ROOT_USER>" "<MINIO_ROOT_PASSWORD>"
 mc mb local/ai-platform-bucket
 mc ls local/ai-platform-bucket
-런타임 폴더(conversations/, config/ 등)는 플랫폼이 만듭니다. 미리 만들 필요는 없습니다.
-모델 스테이징이 끝나면 model_artifacts/ 와 staging_state/ 가 생깁니다.
+```
+
+런타임 폴더(`conversations/`, `config/` 등)는 플랫폼이 만듭니다. 미리 만들 필요는 없습니다.  
+모델 스테이징이 끝나면 `model_artifacts/` 와 `staging_state/` 가 생깁니다.
 
 노드·설치기에서 MinIO가 보여야 합니다.
 
+```
 http://<ADMIN_PRIVATE_IP>:9000
-사전작업 4: (에어갭만) Docker Registry + 이미지 미러
-표준 배포면 이 장을 건너뛰세요. 노드가 Docker Hub에서 이미지를 받습니다.
+```
 
-에어갭이면 내부 레지스트리 25–30GB를 비워 두고, 설치기에서 이미지를 미러합니다.
+---
 
-Registry 기동 (HTTP :5000 예시)
-bash
+## 사전작업 4: (에어갭만) Docker Registry + 이미지 미러
+
+**표준 배포면 이 장을 건너뛰세요.** 노드가 Docker Hub에서 이미지를 받습니다.
+
+에어갭이면 내부 레지스트리 **25–30GB**를 비워 두고, 설치기에서 이미지를 미러합니다.
+
+### Registry 기동 (HTTP :5000 예시)
+
+```bash
 sudo mkdir -p /data/registry
 
 # Docker가 있는 경우
@@ -278,15 +352,18 @@ docker run -d \
   registry:2
 
 curl -s "http://<ADMIN_PRIVATE_IP>:5000/v2/_catalog"
-HTTP 레지스트리면 yaml에 images.registryInsecure: true 를 넣습니다.
-설치기가 각 노드 containerd에 HTTP pull을 설정하므로, 노드마다 hosts.toml을 손으로 쓸 필요는 없습니다.
+```
 
-Harbor 등 HTTPS면 registryInsecure: false 이고, 인증이 있으면 imagePullSecrets.custom.* 를 채웁니다.
+> HTTP 레지스트리면 yaml에 `images.registryInsecure: true` 를 넣습니다.  
+> 설치기가 각 노드 containerd에 HTTP pull을 설정하므로, **노드마다 hosts.toml을 손으로 쓸 필요는 없습니다.**
 
-플랫폼 이미지 미러 (crane 권장)
-베타 때처럼 VOC tar를 docker load 하지 않습니다. GA 이미지는 Docker Hub의 splunk/ai-tier-*:v1.0 입니다.
+Harbor 등 HTTPS면 `registryInsecure: false` 이고, 인증이 있으면 `imagePullSecrets.custom.*` 를 채웁니다.
 
-bash
+### 플랫폼 이미지 미러 (crane 권장)
+
+베타 때처럼 VOC tar를 `docker load` 하지 않습니다. GA 이미지는 Docker Hub의 `splunk/ai-tier-*:v1.0` 입니다.
+
+```bash
 REGISTRY="<ADMIN_PRIVATE_IP>:5000"   # yaml의 images.registry 와 동일해야 함
 
 for image in \
@@ -308,12 +385,17 @@ for image in \
 done
 
 curl -s "http://${REGISTRY}/v2/_catalog"
-빠진 이미지가 있으면 나중에 ImagePullBackOff가 납니다. 특히 slim-service, splunk-ai-operator, splunk:10.2-rhel9 를 빼먹지 마세요.
+```
 
-사전작업 5: Git clone + yaml 작성
-작업 디렉터리는 베타의 tools/cluster_setup 이 아니라 tools/ai-tier-cluster-setup 입니다.
+빠진 이미지가 있으면 나중에 `ImagePullBackOff`가 납니다. 특히 **slim-service, splunk-ai-operator, splunk:10.2-rhel9** 를 빼먹지 마세요.
 
-bash
+---
+
+## 사전작업 5: Git clone + yaml 작성
+
+작업 디렉터리는 베타의 `tools/cluster_setup` 이 아니라 **`tools/ai-tier-cluster-setup`** 입니다.
+
+```bash
 # Splunk가 브랜치를 지정해 주면 그 브랜치를 사용
 git clone -b <branch-name> --single-branch https://github.com/splunk/splunk-ai-operator.git
 cd splunk-ai-operator/tools/ai-tier-cluster-setup
@@ -326,29 +408,40 @@ cp k0s-cluster-config.yaml my-cluster-config.yaml
 
 chmod 600 /path/to/private-key
 vi my-cluster-config.yaml
+```
+
 ZIP으로 받을 때:
 
+```
 https://github.com/splunk/splunk-ai-operator/archive/refs/heads/<branch-name>.zip
-풀면 폴더명이 splunk-ai-operator-<branch-name> 입니다.
+```
 
-워커 IP 순서 (중요)
-nodes.existingIPs.workers 는 CPU를 먼저, 그 다음 GPU입니다.
-앞의 nodes.cpuWorkers 개가 CPU, 나머지가 GPU입니다. 순서가 틀리면 GPU 드라이버가 잘못된 노드에 설치됩니다.
+풀면 폴더명이 `splunk-ai-operator-<branch-name>` 입니다.
 
-모델 스테이징
-10개 모델, 120GB+. Hugging Face에서 받아 오브젝트 스토어로 올립니다.
+### 워커 IP 순서 (중요)
 
-대화형 install: 모델 받을지 물어봄. 답이 yaml의 modelStaging.enabled 보다 우선
-이미 버킷에 있으면 enabled: false 또는 프롬프트에서 no
-설치 전에만 받으려면:
-bash
+`nodes.existingIPs.workers` 는 **CPU를 먼저**, 그 다음 GPU입니다.  
+앞의 `nodes.cpuWorkers` 개가 CPU, 나머지가 GPU입니다. 순서가 틀리면 GPU 드라이버가 잘못된 노드에 설치됩니다.
+
+### 모델 스테이징
+
+10개 모델, **120GB+**. Hugging Face에서 받아 오브젝트 스토어로 올립니다.
+
+- 대화형 `install`: 모델 받을지 물어봄. 답이 yaml의 `modelStaging.enabled` 보다 우선
+- 이미 버킷에 있으면 `enabled: false` 또는 프롬프트에서 no
+- 설치 전에만 받으려면:
+
+```bash
 CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh stage-artifacts
-이미 올라간 모델은 건너뜁니다. L40S ↔ H100 을 바꾸면 다시 stage-artifacts 해야 합니다.
+```
 
-yaml 예시 — 에어갭 + MinIO + HTTP Registry (이 실습의 기본)
-<...> 표시는 모두 본인 값으로 바꿉니다. 비밀번호를 이 파일에 커밋하지 마세요.
+이미 올라간 모델은 건너뜁니다. `L40S` ↔ `H100` 을 바꾸면 **다시** `stage-artifacts` 해야 합니다.
 
-yaml
+### yaml 예시 — 에어갭 + MinIO + HTTP Registry (이 실습의 기본)
+
+`<...>` 표시는 모두 본인 값으로 바꿉니다. 비밀번호를 이 파일에 커밋하지 마세요.
+
+```yaml
 cluster:
   name: ai-cluster
   airgap: true
@@ -448,21 +541,28 @@ aiPlatform:
 
 imagePullSecrets:
   autoCreateECR: false
-yaml 예시 — 표준 (노드가 Docker Hub pull 가능)
+```
+
+### yaml 예시 — 표준 (노드가 Docker Hub pull 가능)
+
 차이만 적습니다.
 
-cluster.airgap 없음 또는 false
-images.registry: ""
-이미지 필드는 docker.io/splunk/...:v1.0 처럼 FQDN 유지 (공식 k0s-cluster-config.yaml 기본값)
-images.registryInsecure 는 프라이빗 HTTP 레지스트리가 아니면 의미 없음
-Registry/crane 단계 생략
-aiPlatform.features 의 saia + slim, slimNodePort: 30081 은 표준에서도 필요합니다.
-Toolkit의 ai / apply CDTSM 이 SLIM을 씁니다.
+- `cluster.airgap` 없음 또는 `false`
+- `images.registry: ""`
+- 이미지 필드는 `docker.io/splunk/...:v1.0` 처럼 **FQDN 유지** (공식 `k0s-cluster-config.yaml` 기본값)
+- `images.registryInsecure` 는 프라이빗 HTTP 레지스트리가 아니면 의미 없음
+- Registry/crane 단계 생략
 
-설치 실행
-첫 설치는 모델 다운로드 포함 3–7시간, 모델이 이미 있으면 30–60분입니다. SSH가 끊기지 않게 tmux를 쓰세요.
+`aiPlatform.features` 의 `saia` + `slim`, `slimNodePort: 30081` 은 표준에서도 필요합니다.  
+Toolkit의 `ai` / `apply CDTSM` 이 SLIM을 씁니다.
 
-bash
+---
+
+## 설치 실행
+
+첫 설치는 모델 다운로드 포함 **3–7시간**, 모델이 이미 있으면 **30–60분**입니다. SSH가 끊기지 않게 tmux를 쓰세요.
+
+```bash
 cd splunk-ai-operator/tools/ai-tier-cluster-setup
 tmux new -s splunk-ai-install
 
@@ -471,21 +571,30 @@ CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh validate
 
 # 2) 설치. 플랜 확인 후 진행
 CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh install
+```
+
 다른 터미널 또는 tmux 창:
 
-bash
+```bash
 tail -f logs/k0s-install-*.log
+```
+
 설치 후:
 
-bash
+```bash
 CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh verify-pods
-tmux에서 나가기: Ctrl-b 다음 d
-다시 붙기: tmux attach -t splunk-ai-install
+```
 
-install 파일 이름을 my_cluster.yaml 처럼 바꾸지 마세요. validate 와 같은 CONFIG_FILE 을 씁니다.
+tmux에서 나가기: `Ctrl-b` 다음 `d`  
+다시 붙기: `tmux attach -t splunk-ai-install`
 
-설치 확인
-bash
+`install` 파일 이름을 `my_cluster.yaml` 처럼 바꾸지 마세요. `validate` 와 **같은** `CONFIG_FILE` 을 씁니다.
+
+---
+
+## 설치 확인
+
+```bash
 export KUBECONFIG=~/.kube/k0s-ai-cluster   # cluster.name 과 맞춤
 
 kubectl get nodes -o wide
@@ -493,29 +602,39 @@ kubectl get pods -A --sort-by=.metadata.namespace
 kubectl get aiplatform -n ai-platform -o wide
 kubectl get svc -n ai-platform
 kubectl get nodes -l splunk.ai/workload-type=gpu -o yaml | grep nvidia.com/gpu
+```
+
 기대값:
 
-리소스	상태
-모든 노드	Ready
-aiplatform	Ready
-대부분 pod	Running 또는 Completed
-GPU 노드	nvidia.com/gpu 가 capacity/allocatable 에 표시
-주요 네임스페이스: ai-platform, splunk-ai-operator-system, splunk-operator, ray-system, cert-manager, metallb-system, kube-system.
+| 리소스 | 상태 |
+|--------|------|
+| 모든 노드 | `Ready` |
+| `aiplatform` | `Ready` |
+| 대부분 pod | `Running` 또는 `Completed` |
+| GPU 노드 | `nvidia.com/gpu` 가 capacity/allocatable 에 표시 |
+
+주요 네임스페이스: `ai-platform`, `splunk-ai-operator-system`, `splunk-operator`, `ray-system`, `cert-manager`, `metallb-system`, `kube-system`.
 
 컨트롤러에 SSH해서 보는 방법 (백업):
 
-bash
+```bash
 ssh -i /path/to/private-key <SSH_USER>@<CONTROLLER_IP> "sudo k0s kubectl get nodes"
 ssh -i /path/to/private-key <SSH_USER>@<CONTROLLER_IP> "sudo k0s kubectl get pods -A"
-10분 넘게 Pending / NotReady 이면 아래 트러블슈팅으로.
+```
 
-Splunk Web 접속 (클러스터 내장 Splunk)
-내장 Splunk Web은 기본 ClusterIP 입니다. 설치기가 NodePort/LB를 만들지 않습니다.
+10분 넘게 `Pending` / `NotReady` 이면 아래 트러블슈팅으로.
 
-관리자 비밀번호
+---
+
+## Splunk Web 접속 (클러스터 내장 Splunk)
+
+내장 Splunk Web은 기본 **ClusterIP** 입니다. 설치기가 NodePort/LB를 만들지 않습니다.
+
+### 관리자 비밀번호
+
 Secret 이름이 고정이 아닙니다. 레이블로 찾습니다.
 
-bash
+```bash
 export KUBECONFIG=~/.kube/k0s-ai-cluster
 NAMESPACE="ai-platform"
 STANDALONE_NAME="splunk-standalone"
@@ -528,105 +647,148 @@ SPLUNK_SECRET="$(kubectl get secret -n "${NAMESPACE}" \
 [[ -n "${SPLUNK_SECRET}" ]] || { echo "Splunk admin Secret not found" >&2; exit 1; }
 kubectl get secret "${SPLUNK_SECRET}" -n "${NAMESPACE}" \
   -o jsonpath='{.data.password}' | base64 --decode && echo
-로컬에서 브라우저로
+```
+
+### 로컬에서 브라우저로
+
 설치기에서:
 
-bash
+```bash
 kubectl port-forward -n ai-platform svc/splunk-splunk-standalone-standalone-service 8000:8000
+```
+
 노트북이 설치기에 SSH만 되면:
 
-bash
+```bash
 ssh -N -L 18000:127.0.0.1:8000 -i /path/to/private-key <SSH_USER>@<ADMIN_PUBLIC_IP>
-브라우저: http://localhost:18000 (또는 설치기에서 직접면 http://localhost:8000)
+```
 
-port-forward 주소(127.0.0.1)를 AI Assistant 설정에 저장하지 마세요. 그건 브라우저용입니다.
+브라우저: `http://localhost:18000` (또는 설치기에서 직접면 `http://localhost:8000`)
 
-앱 설치 및 AI Tier 연결
-플랫폼이 Ready 된 다음 단계입니다. Splunk 10.2 기준입니다.
+> port-forward 주소(`127.0.0.1`)를 **AI Assistant 설정에 저장하지 마세요.** 그건 브라우저용입니다.
 
-1) Splunk AI Assistant 2.3.0
-Splunkbase 7245 에서 2.3.0 Splunk_AI_Assistant_Cloud.tgz 다운로드
-Splunk Web → Apps → Manage Apps → Install app from file
-업로드 후 재시작 요청이 있으면 재시작
+---
+
+## 앱 설치 및 AI Tier 연결
+
+플랫폼이 `Ready` 된 **다음** 단계입니다. Splunk **10.2** 기준입니다.
+
+### 1) Splunk AI Assistant 2.3.0
+
+1. [Splunkbase 7245](https://splunkbase.splunk.com/app/7245) 에서 **2.3.0** `Splunk_AI_Assistant_Cloud.tgz` 다운로드
+2. Splunk Web → **Apps → Manage Apps → Install app from file**
+3. 업로드 후 재시작 요청이 있으면 재시작
+
 SAIA 서비스 확인:
 
-bash
+```bash
 CLUSTER_NAME="ai-cluster"
 SAIA_SERVICE="${CLUSTER_NAME}-ai-platform-saia-saia-service"
 kubectl get svc "${SAIA_SERVICE}" -n ai-platform -o wide
-앱 Configuration 에 넣을 URL:
+```
 
-노출	URL
-NodePort (이 가이드 기본)	http://<WORKER_PRIVATE_IP>:30080
-클러스터 내부 Splunk (권장, Splunk pod가 호출)	http://ai-cluster-ai-platform-saia-saia-service.ai-platform.svc.cluster.local:8080
-LoadBalancer	http://<EXTERNAL_IP>:8080
-브라우저가 사설 SAIA에 못 가면 SOCKS 터널이 필요합니다. 공식 문서 Finding the Splunk Web URL 을 보세요.
+앱 **Configuration** 에 넣을 URL:
+
+| 노출 | URL |
+|------|-----|
+| NodePort (이 가이드 기본) | `http://<WORKER_PRIVATE_IP>:30080` |
+| 클러스터 내부 Splunk (권장, Splunk pod가 호출) | `http://ai-cluster-ai-platform-saia-saia-service.ai-platform.svc.cluster.local:8080` |
+| LoadBalancer | `http://<EXTERNAL_IP>:8080` |
+
+브라우저가 사설 SAIA에 못 가면 SOCKS 터널이 필요합니다. 공식 문서 [Finding the Splunk Web URL](https://github.com/splunk/splunk-ai-operator/blob/main/docs/ai-tier-docs/k0s-readme.md#finding-the-splunk-web-url) 을 보세요.  
 프로덕션에서는 브라우저 → SAIA 경로가 라우팅되어야 합니다. SSH 터널은 테스트용입니다.
 
 연결 후 앱에서 테스트 프롬프트를 보냅니다.
 
-2) Splunk AI Toolkit >= 6.1.0
-Assistant와 별개입니다. Toolkit은 SLIM 을 호출합니다 (ai, apply CDTSM).
+### 2) Splunk AI Toolkit >= 6.1.0
 
-Splunkbase 2890 에서 Splunk_ML_Toolkit.tgz (>= 6.1.0)
-Install app from file
-bash
+Assistant와 **별개**입니다. Toolkit은 **SLIM** 을 호출합니다 (`ai`, `apply CDTSM`).
+
+1. [Splunkbase 2890](https://splunkbase.splunk.com/app/2890) 에서 `Splunk_ML_Toolkit.tgz` (>= 6.1.0)
+2. **Install app from file**
+
+```bash
 CLUSTER_NAME="ai-cluster"
 SLIM_SERVICE="${CLUSTER_NAME}-ai-platform-slim-slim-service"
 kubectl get svc "${SLIM_SERVICE}" -n ai-platform -o wide
-Splunk AI Toolkit → Connections → + Connection → Endpoint → Splunk AI tier
+```
 
-노출	AI tier endpoint URL
-NodePort	http://<WORKER_PRIVATE_IP>:30081/tenant/slim-api/v1alpha1
-ClusterIP	http://ai-cluster-ai-platform-slim-slim-service.ai-platform.svc.cluster.local:8080/tenant/slim-api/v1alpha1
-tenant 는 경로의 테넌트 라벨입니다. 그대로 두거나 짧은 다른 이름을 씁니다.
-저장은 연결 검사를 하지 않습니다. Splunk pod에서 /health 로 SLIM 도달 여부를 먼저 확인하는 것이 좋습니다.
+**Splunk AI Toolkit → Connections → + Connection → Endpoint → Splunk AI tier**
+
+| 노출 | AI tier endpoint URL |
+|------|----------------------|
+| NodePort | `http://<WORKER_PRIVATE_IP>:30081/tenant/slim-api/v1alpha1` |
+| ClusterIP | `http://ai-cluster-ai-platform-slim-slim-service.ai-platform.svc.cluster.local:8080/tenant/slim-api/v1alpha1` |
+
+`tenant` 는 경로의 테넌트 라벨입니다. 그대로 두거나 짧은 다른 이름을 씁니다.  
+저장은 연결 검사를 하지 않습니다. Splunk pod에서 `/health` 로 SLIM 도달 여부를 먼저 확인하는 것이 좋습니다.
 
 검증 SPL:
 
+```
 | inputlookup internet_traffic.csv | head 2000 | apply CDTSM bits_transferred forecast_k=128
-ai 명령은 추가로 Connections → LLM → Splunk AI tier LLM 연결이 필요합니다.
+```
 
-1.0.0에서 Toolkit Agents / Agent Launchpad 는 미지원입니다.
+`ai` 명령은 추가로 **Connections → LLM → Splunk AI tier LLM** 연결이 필요합니다.
 
-외부 Splunk를 쓰는 경우
-클러스터 밖 Splunk면 내장 Splunk 대신 external-splunk-integration.md 를 따릅니다.
+1.0.0에서 Toolkit **Agents / Agent Launchpad 는 미지원**입니다.
 
-JWT만, 관리 포트 8089. 외부 HEC(8088) / OTel 은 이 릴리스에서 미지원
-issuer_uri 를 127.0.0.1 로 두면 SAIA가 JWKS를 못 가져옵니다. 클러스터가 도달하는 FQDN/IP 를 씁니다
-yaml의 splunk.trustedIssuers 와 글자 단위로 동일해야 합니다
-자주 쓰는 운영 명령
-모두 tools/ai-tier-cluster-setup 에서, 같은 CONFIG_FILE 로 실행합니다.
+### 외부 Splunk를 쓰는 경우
 
-작업	명령
-실패 후 재시도	./k0s_cluster_with_stack.sh install (대부분 이어서 진행)
-모델만 다시	./k0s_cluster_with_stack.sh stage-artifacts
-워커 추가	yaml에 IP 추가 후 ./k0s_cluster_with_stack.sh join-workers
-지원 번들	./k0s_cluster_with_stack.sh diagnose → logs/k0s-diagnose-*.tar.gz
-완전 삭제	./k0s_cluster_with_stack.sh clean-all (복구 불가) 후 다시 install
-이미지 태그 갱신: yaml 태그를 올리고 install 재실행.
-에어갭이면 새 태그를 레지스트리에 미러한 다음 yaml을 바꾸고 install 합니다. 안 그러면 ImagePullBackOff.
+클러스터 밖 Splunk면 내장 Splunk 대신 [external-splunk-integration.md](https://github.com/splunk/splunk-ai-operator/blob/main/docs/ai-tier-docs/external-splunk-integration.md) 를 따릅니다.
 
-용량: aiPlatform.scaleFactor: 2 는 워크로드만 키웁니다. GPU 노드는 자동 추가되지 않습니다.
-scaleFactor 를 줄이면 일시 중단이 있으니 유지보수 창에서 하세요.
+- JWT만, 관리 포트 **8089**. 외부 HEC(8088) / OTel 은 이 릴리스에서 미지원
+- `issuer_uri` 를 `127.0.0.1` 로 두면 SAIA가 JWKS를 못 가져옵니다. 클러스터가 도달하는 FQDN/IP 를 씁니다
+- yaml의 `splunk.trustedIssuers` 와 **글자 단위로 동일**해야 합니다
 
-트러블슈팅
-bash
+---
+
+## 자주 쓰는 운영 명령
+
+모두 `tools/ai-tier-cluster-setup` 에서, 같은 `CONFIG_FILE` 로 실행합니다.
+
+| 작업 | 명령 |
+|------|------|
+| 실패 후 재시도 | `./k0s_cluster_with_stack.sh install` (대부분 이어서 진행) |
+| 모델만 다시 | `./k0s_cluster_with_stack.sh stage-artifacts` |
+| 워커 추가 | yaml에 IP 추가 후 `./k0s_cluster_with_stack.sh join-workers` |
+| 지원 번들 | `./k0s_cluster_with_stack.sh diagnose` → `logs/k0s-diagnose-*.tar.gz` |
+| 완전 삭제 | `./k0s_cluster_with_stack.sh clean-all` (**복구 불가**) 후 다시 `install` |
+
+이미지 태그 갱신: yaml 태그를 올리고 `install` 재실행.  
+에어갭이면 **새 태그를 레지스트리에 미러한 다음** yaml을 바꾸고 `install` 합니다. 안 그러면 `ImagePullBackOff`.
+
+용량: `aiPlatform.scaleFactor: 2` 는 워크로드만 키웁니다. **GPU 노드는 자동 추가되지 않습니다.**  
+`scaleFactor` 를 줄이면 일시 중단이 있으니 유지보수 창에서 하세요.
+
+---
+
+## 트러블슈팅
+
+```bash
 CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh validate
 grep -i error logs/k0s-install-*.log | tail -50
 CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh diagnose
-증상	볼 곳	조치
-SSH connection refused / timeout	ssh -i key user@node hostname	22, 키 chmod 600, SG Source = VPC CIDR
-validate 실패	yaml 체크리스트	컨트롤러 IP 1개, 워커 CPU 먼저, 디스크 하한
-ImagePullBackOff (SAIA/Ray/Splunk)	kubectl describe pod	미러 목록, images.registry, 상대 경로 vs FQDN
-HTTP response to HTTPS client	위와 동일	HTTP 레지스트리면 registryInsecure: true
-모델 MISSING	MinIO 버킷	소문자 버킷명, model_artifacts/, stage-artifacts
-L40S→H100 후 MISSING	정상	stage-artifacts 재실행
-python3+pyyaml missing	노드	RHEL: dnf install -y python3-pyyaml
-AIPlatform Pending	kubectl describe aiplatform -n ai-platform	operator 로그, GPU nvidia.com/gpu
-SAIA에 EXTERNAL-IP 없음	NodePort는 원래 없음	http://<worker-ip>:30080 사용
-install 중 SSH 끊김	tmux 없이 실행	tmux로 재실행. install 재시도는 안전
-최종 체크리스트
+```
+
+| 증상 | 볼 곳 | 조치 |
+|------|-------|------|
+| SSH connection refused / timeout | `ssh -i key user@node hostname` | 22, 키 `chmod 600`, SG Source = VPC CIDR |
+| validate 실패 | yaml 체크리스트 | 컨트롤러 IP 1개, 워커 CPU 먼저, 디스크 하한 |
+| ImagePullBackOff (SAIA/Ray/Splunk) | `kubectl describe pod` | 미러 목록, `images.registry`, 상대 경로 vs FQDN |
+| `HTTP response to HTTPS client` | 위와 동일 | HTTP 레지스트리면 `registryInsecure: true` |
+| 모델 MISSING | MinIO 버킷 | 소문자 버킷명, `model_artifacts/`, `stage-artifacts` |
+| L40S→H100 후 MISSING | 정상 | `stage-artifacts` 재실행 |
+| `python3+pyyaml missing` | 노드 | RHEL: `dnf install -y python3-pyyaml` |
+| AIPlatform Pending | `kubectl describe aiplatform -n ai-platform` | operator 로그, GPU `nvidia.com/gpu` |
+| SAIA에 EXTERNAL-IP 없음 | NodePort는 원래 없음 | `http://<worker-ip>:30080` 사용 |
+| install 중 SSH 끊김 | tmux 없이 실행 | tmux로 재실행. `install` 재시도는 안전 |
+
+---
+
+## 최종 체크리스트
+
+```
 □ 설치기 OS = RHEL 9.8 또는 10.2
 □ 노드 OS 통일, passwordless sudo, python3 3.8+, SSH 확인
 □ GPU 워커 2대, L40S 또는 H100 중 하나만
@@ -644,16 +806,23 @@ install 중 SSH 끊김	tmux 없이 실행	tmux로 재실행. install 재시도�
 □ Splunk 10.2 + Assistant 2.3.0 + Toolkit 6.1.0
 □ Assistant URL에 127.0.0.1 을 저장하지 않음
 □ Toolkit SLIM URL에 /tenant/slim-api/v1alpha1 포함
-구 베타 가이드에서 바뀐 점 (요약)
-구 (베타 0.2)	지금 (GA 1.0)
-tools/cluster_setup	tools/ai-tier-cluster-setup
-VOC / beta/0.2 tar	Docker Hub splunk/ai-tier-*:v1.0 + crane copy
-splunk-ai-operator:0.2.0, build-953	operator/SAIA/Ray v1.0
-feature saia 만	saia + slim
-Assistant preview.tgz (VOC)	Splunkbase Assistant 2.3.0
-Toolkit 없음	Toolkit >= 6.1.0 → SLIM :30081
-kubectl v1.31 yum	kubectl v1.36.1 바이너리
-노드마다 hosts.toml 수동	images.registryInsecure: true
-Secret 이름 고정	versioned Secret 레이블 조회
-my-cluster.yaml	my-cluster-config.yaml
-공식 한 줄 진입점: k0s-quick-reference.md
+```
+
+---
+
+## 구 베타 가이드에서 바뀐 점 (요약)
+
+| 구 (베타 0.2) | 지금 (GA 1.0) |
+|---------------|----------------|
+| `tools/cluster_setup` | `tools/ai-tier-cluster-setup` |
+| VOC / `beta/0.2` tar | Docker Hub `splunk/ai-tier-*:v1.0` + `crane copy` |
+| `splunk-ai-operator:0.2.0`, `build-953` | operator/SAIA/Ray **v1.0** |
+| feature `saia` 만 | **`saia` + `slim`** |
+| Assistant preview.tgz (VOC) | Splunkbase Assistant **2.3.0** |
+| Toolkit 없음 | Toolkit **>= 6.1.0** → SLIM `:30081` |
+| kubectl v1.31 yum | kubectl **v1.36.1** 바이너리 |
+| 노드마다 hosts.toml 수동 | `images.registryInsecure: true` |
+| Secret 이름 고정 | versioned Secret 레이블 조회 |
+| `my-cluster.yaml` | `my-cluster-config.yaml` |
+
+공식 한 줄 진입점: [k0s-quick-reference.md](https://github.com/splunk/splunk-ai-operator/blob/main/docs/ai-tier-docs/k0s-quick-reference.md)
