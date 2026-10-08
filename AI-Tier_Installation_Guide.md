@@ -183,9 +183,34 @@ sudo install -o root -g root -m 0755 /tmp/crane /usr/local/bin/crane
 rm -f /tmp/crane.tar.gz /tmp/crane
 ```
 
+`git` / `jq` 는 `dnf`로 **`/usr/bin`** 에 설치되어 바로 잡힙니다.  
+`kubectl` / `helm` / `yq` / `crane` 은 **`/usr/local/bin`** 에 설치됩니다. RHEL은 이 경로가 PATH에 없거나, `sudo`의 `secure_path`에 빠져서 `command not found` 가 납니다.
+
+설치 직후 PATH를 넣으세요.
+
+```bash
+# 파일이 실제로 깔렸는지
+ls -l /usr/local/bin/kubectl /usr/local/bin/helm /usr/local/bin/yq /usr/local/bin/crane
+
+# 현재 세션
+export PATH="/usr/local/bin:$PATH"
+
+# 로그인할 때마다 적용
+grep -q '/usr/local/bin' ~/.bashrc || echo 'export PATH="/usr/local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+모든 계정에 넣으려면:
+
+```bash
+echo 'export PATH="/usr/local/bin:$PATH"' | sudo tee /etc/profile.d/usr-local-bin.sh
+sudo chmod 644 /etc/profile.d/usr-local-bin.sh
+```
+
 확인:
 
 ```bash
+echo "PATH=$PATH"
 kubectl version --client
 helm version
 git --version
@@ -193,6 +218,16 @@ jq --version
 yq --version
 crane version
 ```
+
+`sudo kubectl` 만 실패하면 `sudo`가 `/usr/local/bin`을 안 보는 것입니다.
+
+```bash
+sudo /usr/local/bin/kubectl version --client
+# 또는
+sudo env "PATH=/usr/local/bin:$PATH" kubectl version --client
+```
+
+`ls`에 네 파일이 없으면 설치가 안 된 것입니다. 위 설치 명령을 다시 실행하세요.
 
 에어갭이고 GPU 노드가 RHEL이면:
 
@@ -245,19 +280,33 @@ GPU 드라이버는 **직접 설치하지 않습니다.** 표준 경로에서는
 
 자격 증명은 파일에 넣고 권한을 제한하세요. 가이드나 Git에 실제 비밀번호를 넣지 마세요.
 
+예전 커뮤니티 주소 `https://dl.min.io/server/minio/release/...` 와 `https://dl.min.io/client/mc/release/...` 는 **HTTP 410 Gone** 입니다. 오픈소스 MinIO Server/Client 배포가 archived 되어 더 이상 제공되지 않습니다. 2026년 9월부터는 **AIStor** 경로를 사용하세요.
+
 ```bash
 sudo mkdir -p /data/minio /etc/minio
 sudo chown -R "$USER:$USER" /data/minio
 
-# 바이너리
-sudo curl -fsSL https://dl.min.io/server/minio/release/linux-amd64/minio \
+# 서버 — 예전 URL(/server/minio/...)은 410. AIStor 경로 사용
+sudo curl -fsSL https://dl.min.io/aistor/minio/release/linux-amd64/minio \
   -o /usr/local/bin/minio
 sudo chmod +x /usr/local/bin/minio
 
-sudo curl -fsSL https://dl.min.io/client/mc/release/linux-amd64/mc \
+# 클라이언트 — 예전 URL(/client/mc/...)도 410
+sudo curl -fsSL https://dl.min.io/aistor/mc/release/linux-amd64/mc \
   -o /usr/local/bin/mc
 sudo chmod +x /usr/local/bin/mc
+
+/usr/local/bin/minio --version
+/usr/local/bin/mc --version
 ```
+
+RHEL에서 RPM으로 설치하려면:
+
+```bash
+sudo dnf install -y https://dl.min.io/aistor/minio/release/linux-amd64/minio.rpm
+```
+
+바이너리도 `/usr/local/bin` 이므로, 사전작업 2에서 PATH를 넣지 않았다면 `export PATH="/usr/local/bin:$PATH"` 가 필요합니다.
 
 `/etc/minio/minio.env` 작성 (값은 직접 채움):
 
@@ -298,7 +347,39 @@ sudo systemctl is-active minio
 curl -s -o /dev/null -w "MinIO live: %{http_code}\n" http://127.0.0.1:9000/minio/health/live
 ```
 
-버킷 생성 (버킷 이름은 **소문자**, yaml과 **동일**하게):
+health 200은 **프로세스가 살아 있다**는 뜻입니다. AIStor는 라이선스가 없으면 **S3가 막히고**(offline mode), 콘솔 로그인도 `No license is installed` / `mc license update` 로 거절됩니다. 버킷 생성·모델 스테이징 전에 라이선스를 넣으세요.
+
+**AIStor Free** (싱글 노드, 이 실습의 Admin 1대와 맞음):
+
+1. [MinIO Pricing](https://www.min.io/pricing) → **Free / Get Started**, 또는 [AIStor Download](https://www.min.io/download)
+2. SUBNET에 로그인 후 **License Key**를 복사하거나 `minio.license` 파일을 다운로드
+3. 파일을 Admin 서버로 복사한 뒤 적용 (라이선스 파일은 Git에 넣지 말 것)
+
+```bash
+mc alias set local http://127.0.0.1:9000 "<MINIO_ROOT_USER>" "<MINIO_ROOT_PASSWORD>"
+mc license register local --license /path/to/minio.license
+# 이미 alias만 있고 등록만 다시 하면
+# mc license update local /path/to/minio.license
+mc license info local
+```
+
+웹 콘솔은 **9000(S3 API)이 아니라 9001** 입니다.
+
+```
+http://<ADMIN_PRIVATE_IP>:9001
+```
+
+노트북에서 열려면 SG에 9001을 열거나 SSH 터널을 씁니다.
+
+```bash
+ssh -N -L 9001:127.0.0.1:9001 -i /path/to/private-key <SSH_USER>@<ADMIN_PUBLIC_IP>
+```
+
+브라우저: `http://127.0.0.1:9001` — env의 root 계정으로 로그인합니다.
+
+라이선스 문서: [Licenses](https://docs.min.io/aistor/operations/licenses/)
+
+버킷 생성 (버킷 이름은 **소문자**, yaml과 **동일**하게. **라이선스 적용 후**):
 
 ```bash
 # 셸에서만 사용. 히스토리에 남지 않게 주의
@@ -310,11 +391,13 @@ mc ls local/ai-platform-bucket
 런타임 폴더(`conversations/`, `config/` 등)는 플랫폼이 만듭니다. 미리 만들 필요는 없습니다.  
 모델 스테이징이 끝나면 `model_artifacts/` 와 `staging_state/` 가 생깁니다.
 
-노드·설치기에서 MinIO가 보여야 합니다.
+클러스터 노드·설치기가 쓰는 S3 API는 **9000** 입니다.
 
 ```
 http://<ADMIN_PRIVATE_IP>:9000
 ```
+
+웹 콘솔은 **9001** (`http://<ADMIN_PRIVATE_IP>:9001`).
 
 ---
 
@@ -388,6 +471,16 @@ curl -s "http://${REGISTRY}/v2/_catalog"
 ```
 
 빠진 이미지가 있으면 나중에 `ImagePullBackOff`가 납니다. 특히 **slim-service, splunk-ai-operator, splunk:10.2-rhel9** 를 빼먹지 마세요.
+
+`crane copy` 는 `docker.io/` 만 떼서 미러합니다. yaml에서 이미지 경로를 **전부 `splunk/` 로 통일하지 마세요.** weaviate는 `semitechnologies/...`, nginx는 `library/nginx:...` 입니다. 앞에 `/splunk/` 처럼 슬래시를 붙이지도 마세요.
+
+Admin에서 목록 확인:
+
+```bash
+curl -s "http://<ADMIN_PRIVATE_IP>:5000/v2/_catalog"
+```
+
+`validate` 에 `! images.registry is empty — using public registries` 가 뜨면 에러가 아니라 경고입니다. 프라이빗 레지스트리를 쓰면 yaml에 `images.registry: "<ADMIN_PRIVATE_IP>:5000"` 을 넣으세요. 노드가 Docker Hub로 직접 pull이면 빈 값 그대로 두면 됩니다.
 
 ---
 
@@ -474,7 +567,7 @@ storage:
     bucket: "ai-platform-bucket"
     endpoint: "http://<ADMIN_PRIVATE_IP>:9000"
     auth:
-      rootUser: "<MINIO_ROOT_USER>"
+      rootUser: "<MINIO_ROOT_USER>"       # paste- / CHANGE THIS 문구를 남기지 말 것
       rootPassword: "<MINIO_ROOT_PASSWORD>"
 
 # 상대 경로. 설치기가 images.registry 를 앞에 붙임
@@ -773,6 +866,10 @@ CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh diagnose
 
 | 증상 | 볼 곳 | 조치 |
 |------|-------|------|
+| `kubectl`/`helm`/`yq`/`crane`: command not found (`git`/`jq`는 됨) | `ls -l /usr/local/bin/kubectl` , `echo $PATH` | `/usr/local/bin` 을 PATH에 추가. `sudo` 는 `/usr/local/bin/kubectl` 로 실행 |
+| MinIO `wget`/`curl` 이 **HTTP 410 Gone** | 예전 `dl.min.io/server/minio/...` 또는 `dl.min.io/client/mc/...` | `https://dl.min.io/aistor/minio/release/linux-amd64/minio` 와 `https://dl.min.io/aistor/mc/release/linux-amd64/mc` 사용 |
+| 콘솔 로그인: `No license is installed` | AIStor는 라이선스 필수. health 200만으로는 S3/콘솔이 안 열림 | [Pricing](https://www.min.io/pricing) Free Get Started 후 `mc license register local --license /path/to/minio.license` |
+| 브라우저에서 9000 접속 실패, curl 127.0.0.1:9000 은 200 | 9000=S3 API, 콘솔=**9001**. curl은 서버 로컬 | `http://<ADMIN_IP>:9001` 또는 SSH `-L 9001:127.0.0.1:9001` |
 | SSH connection refused / timeout | `ssh -i key user@node hostname` | 22, 키 `chmod 600`, SG Source = VPC CIDR |
 | validate 실패 | yaml 체크리스트 | 컨트롤러 IP 1개, 워커 CPU 먼저, 디스크 하한 |
 | ImagePullBackOff (SAIA/Ray/Splunk) | `kubectl describe pod` | 미러 목록, `images.registry`, 상대 경로 vs FQDN |
@@ -790,10 +887,11 @@ CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh diagnose
 
 ```
 □ 설치기 OS = RHEL 9.8 또는 10.2
+□ kubectl/helm/yq/crane 가 /usr/local/bin 에 있고 PATH에 포함됨
 □ 노드 OS 통일, passwordless sudo, python3 3.8+, SSH 확인
 □ GPU 워커 2대, L40S 또는 H100 중 하나만
 □ SG에 Admin+전 노드, Source는 VPC CIDR
-□ MinIO 기동, 버킷 이름 yaml과 동일 (소문자)
+□ MinIO 기동, AIStor Free 라이선스 적용, 콘솔 9001 로그인, 버킷 이름 yaml과 동일 (소문자)
 □ (에어갭) Registry 기동, crane으로 공식 이미지 전체 미러
 □ (에어갭) images.registry / registryInsecure: true / cluster.airgap: true
 □ git clone 후 tools/ai-tier-cluster-setup
