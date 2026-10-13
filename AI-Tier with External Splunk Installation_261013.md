@@ -3,8 +3,6 @@
 데이터가 있는 **외부 Splunk**에 AI Assistant / Toolkit을 붙이고, 추론은 AWS k0s AI-Tier가 하는 랩 가이드입니다.  
 클러스터 안에 Splunk를 올리지 않습니다.
 
-비밀번호·키·토큰은 이 문서에 넣지 마세요.
-
 ---
 
 ## 한 줄 구조
@@ -56,21 +54,172 @@ AI-Tier 파드
 
 ---
 
-## 2. Admin (이미 있으면 건너뛰기)
+## 2. Admin 서버 — 처음부터
 
-`/usr/local/bin` 에 kubectl, helm, yq, crane, mc. PATH에 넣기.
+Admin은 **설치기**입니다. 클러스터 노드가 아닙니다. kubectl을 여기서 쓰려면 나중에 kubeconfig가 필요합니다.  
+도구·MinIO·Registry가 이미 있으면 맨 아래 **확인만** 하고 3장으로 가세요. `clean-all` 하지 마세요.
 
-MinIO는 AIStor URL + Free 라이선스, API **9000**, 콘솔 **9001**, 버킷 소문자.  
-Registry `http://<ADMIN_사설>:5000`. `crane copy --insecure` 로 공식 이미지를 미러. **`splunk/splunk-operator:3.0.0` 필수.**
+### 2.1 도구
 
 ```bash
+sudo dnf install -y ca-certificates curl git jq openssh-clients tar wget tmux python3 python3-pyyaml
+
+curl -fsSLO "https://dl.k8s.io/release/v1.36.1/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && rm -f kubectl
+
+curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+
+sudo curl -fsSL https://github.com/mikefarah/yq/releases/download/v4.44.1/yq_linux_amd64 \
+  -o /usr/local/bin/yq && sudo chmod +x /usr/local/bin/yq
+
+curl -fsSL https://github.com/google/go-containerregistry/releases/download/v0.21.9/go-containerregistry_Linux_x86_64.tar.gz \
+  -o /tmp/crane.tar.gz
+tar -xzf /tmp/crane.tar.gz -C /tmp crane
+sudo install -o root -g root -m 0755 /tmp/crane /usr/local/bin/crane
+rm -f /tmp/crane.tar.gz /tmp/crane
+
+export PATH="/usr/local/bin:$PATH"
+grep -q '/usr/local/bin' ~/.bashrc || echo 'export PATH="/usr/local/bin:$PATH"' >> ~/.bashrc
+echo 'export PATH="/usr/local/bin:$PATH"' | sudo tee /etc/profile.d/usr-local-bin.sh
+```
+
+RHEL은 `/usr/local/bin` 이 PATH에 없어서 `kubectl: command not found` 가 납니다. `sudo kubectl` 은 `sudo /usr/local/bin/kubectl` 로 실행하세요.
+
+```bash
+kubectl version --client && helm version && yq --version && crane version && git --version
+```
+
+GPU 노드가 RHEL이면 Admin에 `sudo dnf install -y createrepo_c` (오프라인 NVIDIA 패키지용).  
+SSH 키: `chmod 600 /path/to/private-key`.
+
+클러스터 노드마다 (한 번):
+
+```bash
+ssh -i /path/to/private-key ec2-user@<NODE_사설> \
+  'hostname; sudo -n true && echo sudo_ok; python3 --version'
+# sudo 가 비밀번호를 물으면 그 노드에서:
+# echo 'ec2-user ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/ec2-user
+# sudo chmod 440 /etc/sudoers.d/ec2-user
+```
+
+GPU 드라이버는 직접 깔지 않습니다. `install` 이 넣습니다.
+
+### 2.2 MinIO (AIStor)
+
+예전 `dl.min.io/server/minio/...` 는 **HTTP 410** 입니다. AIStor 경로를 씁니다.
+
+```bash
+sudo mkdir -p /data/minio /etc/minio
+sudo chown -R "$USER:$USER" /data/minio
+
+sudo curl -fsSL https://dl.min.io/aistor/minio/release/linux-amd64/minio -o /usr/local/bin/minio
+sudo curl -fsSL https://dl.min.io/aistor/mc/release/linux-amd64/mc -o /usr/local/bin/mc
+sudo chmod +x /usr/local/bin/minio /usr/local/bin/mc
+```
+
+`/etc/minio/minio.env` (실제 비밀번호. Git에 넣지 말 것):
+
+```bash
+sudo tee /etc/minio/minio.env > /dev/null << 'EOF'
+MINIO_ROOT_USER=<MINIO_ROOT_USER>
+MINIO_ROOT_PASSWORD=<MINIO_ROOT_PASSWORD>
+MINIO_VOLUMES=/data/minio
+MINIO_OPTS=--address :9000 --console-address :9001
+EOF
+sudo chmod 600 /etc/minio/minio.env
+```
+
+```bash
+sudo tee /etc/systemd/system/minio.service > /dev/null << 'EOF'
+[Unit]
+Description=MinIO
+After=network-online.target
+[Service]
+User=root
+EnvironmentFile=/etc/minio/minio.env
+ExecStart=/usr/local/bin/minio server $MINIO_VOLUMES $MINIO_OPTS
+Restart=always
+LimitNOFILE=65536
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now minio
+curl -s -o /dev/null -w "minio:%{http_code}\n" http://127.0.0.1:9000/minio/health/live
+```
+
+health 200만으로는 S3가 안 열립니다. **AIStor Free 라이선스**가 필요합니다. [Pricing](https://www.min.io/pricing) Free Get Started → `minio.license` 를 Admin으로 복사.
+
+```bash
+export PATH="/usr/local/bin:$PATH"
+mc alias set local http://127.0.0.1:9000 "<MINIO_ROOT_USER>" "<MINIO_ROOT_PASSWORD>"
+mc license register local --license /path/to/minio.license
+mc mb local/ai-platform-bucket
+```
+
+S3 API = **9000**, 콘솔 = **9001** (`http://<ADMIN_사설>:9001`). 버킷 이름은 yaml과 같고 **소문자**.
+
+### 2.3 HTTP Registry + 이미지 미러
+
+노드가 Docker Hub를 못 가는 이 가이드의 기본입니다. Registry 디스크 **+30GB**.
+
+```bash
+sudo dnf install -y dnf-plugins-core
+sudo dnf config-manager --add-repo https://download.docker.com/linux/rhel/docker-ce.repo
+sudo dnf install -y docker-ce docker-ce-cli containerd.io
+sudo mkdir -p /etc/docker /data/registry
+sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+{ "insecure-registries": ["<ADMIN_사설>:5000"] }
+EOF
+sudo systemctl enable --now docker
+sudo systemctl restart docker
+
+docker run -d --name docker-registry --restart always \
+  -p 5000:5000 -v /data/registry:/var/lib/registry registry:2
+```
+
+```bash
+export PATH="/usr/local/bin:$PATH"
+REGISTRY="<ADMIN_사설>:5000"
+for image in \
+  docker.io/splunk/ai-tier-saia-data-loader:v1.0 \
+  docker.io/splunk/ai-tier-saia-api-v2:v1.0 \
+  docker.io/splunk/ai-tier-saia-api:v1.0 \
+  docker.io/splunk/ai-tier-ray-head:v1.0 \
+  docker.io/splunk/ai-tier-ray-worker:v1.0 \
+  docker.io/splunk/splunk-ai-operator:v1.0 \
+  docker.io/splunk/ai-tier-slim-service:v1.0 \
+  docker.io/splunk/splunk:10.2-rhel9 \
+  docker.io/splunk/splunk-operator:3.0.0 \
+  docker.io/semitechnologies/weaviate:stable-v1.28-007846a \
+  docker.io/otel/opentelemetry-collector-contrib:0.122.1 \
+  docker.io/fluent/fluent-bit:1.9.6 \
+  docker.io/library/nginx:1.27-alpine; do
+    crane copy "${image}" "${REGISTRY}/${image#docker.io/}" --insecure
+done
+curl -s "http://${REGISTRY}/v2/splunk/splunk-operator/tags/list"
+```
+
+**`3.0.0` 이 없으면** Operator ImagePullBackOff 입니다. yaml 이미지 경로를 전부 `splunk/` 로 바꾸지 마세요. weaviate·nginx는 원래 경로 그대로입니다.
+
+모델(약 120GB)은 yaml 작성 후:
+
+```bash
+CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh stage-artifacts
+```
+
+버킷에 이미 있으면 yaml `modelStaging.enabled: false`.
+
+### 2.4 이미 Admin을 쓰는 경우
+
+```bash
+which kubectl helm yq crane mc
+curl -s -o /dev/null -w "minio:%{http_code}\n" http://127.0.0.1:9000/minio/health/live
 curl -s "http://<ADMIN_사설>:5000/v2/splunk/splunk-operator/tags/list"
 mc ls local/ai-platform-bucket/model_artifacts/ | head
 ```
 
-이미 있으면 **crane / stage-artifacts / MinIO를 다시 하지 마세요.** `clean-all` 도 하지 마세요.
-
-노드만 새로 깔 때: 예전 kubeconfig는 `.old` 로 옮기고, yaml IP만 새 사설 IP로, 첫 설치 `useExisting: never`.
+통과하면 2.1–2.3을 다시 하지 마세요. 노드만 교체할 때는 kubeconfig를 `.old` 로 옮기고 yaml IP만 바꾸고 `useExisting: never`.
 
 ---
 
@@ -106,7 +255,7 @@ nodes:
 storage:
   storageClass: "local-path"
   modelStaging:
-    enabled: false            # 모델이 버킷에 있으면 false
+    enabled: false            # 첫 설치면 true 이거나 아래 stage-artifacts. 이미 버킷에 있으면 false
   objectStore:
     type: minio
     bucket: ai-platform-bucket
@@ -140,7 +289,15 @@ aiPlatform:
 `splunk.external.endpoint` 는 만들지 마세요.  
 `trustedIssuers` 는 공식 템플릿에 **주석**으로만 있습니다. 직접 추가합니다.
 
-이미지 경로는 템플릿의 상대 경로를 유지하세요. 전부 `splunk/` 로 바꾸지 마세요 (weaviate, nginx).
+이미지 경로는 템플릿의 상대 경로를 유지하세요. 전부 `splunk/` 로 바꾸지 마세요 (weaviate, nginx). 템플릿의 ray/saia/slim 상대 경로도 그대로 둡니다.
+
+첫 설치에서 모델이 버킷에 없으면 yaml을 저장한 뒤:
+
+```bash
+CONFIG_FILE=./my-cluster-config.yaml ./k0s_cluster_with_stack.sh stage-artifacts
+```
+
+`paste-` / `CHANGE THIS` / `10.0.0.5` 가 yaml에 남아 있으면 이 명령이 거절합니다. L40S↔H100 을 바꾸면 다시 stage 합니다.
 
 ---
 
