@@ -38,7 +38,7 @@ AI-Tier 파드
 
 | 역할 | 수량 | 권장 | 비고 |
 |------|------|------|------|
-| Admin | 1 | t3.xlarge+, 디스크 250GB+ | 설치기 + MinIO + HTTP Registry. **클러스터 노드 아님** |
+| Admin | 1 | t3.xlarge+, 디스크 500GB+ | 설치기 + MinIO + HTTP Registry. **클러스터 노드 아님** |
 | Controller | 1 | m5.2xlarge, `/var/lib/k0s` 100GB+ | **EBS**. instance store 금지 |
 | CPU worker | 1 | m5.4xlarge, 200GB+ | SAIA / SLIM |
 | GPU worker | 2 | g6e.12xlarge (L40S), 500GB+ | |
